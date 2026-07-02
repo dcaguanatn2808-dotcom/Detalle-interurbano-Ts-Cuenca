@@ -1,786 +1,1694 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estado de Hilos de Rutas Interurbanas</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interurbanas — Dashboard Operativo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root{
+  --bg:#f0f2f5;--panel:#ffffff;--panel2:#f5f7fa;--border:#e0e4ed;
+  --accent:#1a3a7a;--green:#00897b;--yellow:#f5a623;--red:#e53935;
+  --orange:#f57c00;--purple:#6a1b9a;--text:#1a2340;--muted:#6b7a99;
+  --nav-bg:#1a3a7a;--nav-text:#ffffff;
+  --side-w:220px;--nav-h:54px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh;overflow-x:hidden;}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
-            color: #333;
-        }
+nav{position:fixed;top:0;left:0;right:0;z-index:400;height:var(--nav-h);background:var(--nav-bg);border-bottom:1px solid rgba(255,255,255,.12);display:flex;align-items:center;padding:0 24px 0 calc(var(--side-w) + 24px);gap:16px;justify-content:space-between;}
+.brand{position:fixed;left:0;top:0;width:var(--side-w);height:var(--nav-h);background:var(--nav-bg);display:flex;align-items:center;gap:10px;padding:0 18px;border-right:1px solid rgba(255,255,255,.12);z-index:401;}
+.brand-icon{font-size:20px;}
+.brand-text strong{display:block;font-size:14px;font-weight:800;color:#fff;letter-spacing:.3px;}
+.brand-text small{font-size:10px;color:rgba(255,255,255,.6);}
+.nav-title{display:flex;flex-direction:column;gap:2px;}
+.nav-title h1{font-size:16px;font-weight:700;color:#fff;}
+.nav-title h1 span{color:#f5a623;}
+.nav-title p{font-size:11px;color:rgba(255,255,255,.65);}
+.nav-badge{padding:4px 13px;border-radius:20px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:11px;font-weight:700;white-space:nowrap;}
+.nav-right{color:rgba(255,255,255,.6);font-size:11px;white-space:nowrap;}
 
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+.shell{display:flex;padding-top:var(--nav-h);}
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
+/* ── SIDEBAR ─── */
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:300;box-shadow:2px 0 8px rgba(0,0,0,.06);}
 
-        .header h1 {
-            font-size: 36px;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
+/* label FILTROS en sidebar */
+.sidebar-header{padding:14px 16px 8px;border-bottom:1px solid var(--border);}
+.sidebar-header span{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
 
-        .header p {
-            font-size: 16px;
-            opacity: 0.95;
-        }
+.fg{border-bottom:1px solid var(--border);flex-shrink:0;}
+.fg-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s;}
+.fg-hd:hover{background:var(--panel2);}
+.fg-hd-left{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;}
+.fg-hd-left svg{stroke:var(--muted);}
+.fg-arr{font-size:9px;color:var(--muted);transition:transform .22s;}
+.fg-arr.open{transform:rotate(180deg);}
+.fg-body{display:none;padding:3px 0 6px;background:var(--panel2);}
+.fg-body.open{display:block;}
 
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
+.fo{display:flex;align-items:center;gap:9px;padding:7px 16px;cursor:pointer;font-size:11px;color:var(--muted);transition:background .1s,color .1s;}
+.fo:hover{background:#e8edf7;color:var(--accent);}
+.fo.sel{color:var(--accent);font-weight:600;}
+.fo-chk{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .15s;}
+.fo.sel .fo-chk{background:var(--accent);border-color:var(--accent);color:#fff;}
+.fo-lbl{flex:1;}
+.fo-cnt{font-size:10px;color:var(--muted);background:#e8edf7;padding:1px 7px;border-radius:8px;font-weight:600;}
+.fo.sel .fo-cnt{background:rgba(26,58,122,.1);color:var(--accent);}
 
-        .kpi-card {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #667eea;
-            transition: all 0.3s;
-        }
+/* chips */
+.chips-area{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.chips-area:empty{display:none;}
+.chip{display:flex;align-items:center;justify-content:space-between;padding:5px 9px;border-radius:6px;background:rgba(26,58,122,.07);border:1px solid rgba(26,58,122,.18);font-size:10px;}
+.chip-info{display:flex;flex-direction:column;gap:1px;}
+.chip-key{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.chip-val{color:var(--accent);font-weight:700;}
+.chip-x{cursor:pointer;font-size:15px;color:var(--muted);line-height:1;transition:color .15s;flex-shrink:0;}
+.chip-x:hover{color:var(--red);}
 
-        .kpi-card:hover {
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-            transform: translateY(-2px);
-        }
+.sidebar-foot{margin-top:auto;padding:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;position:sticky;bottom:0;background:var(--panel);flex-shrink:0;}
+.btn-clear{width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;font-weight:600;}
+.btn-clear:hover{border-color:var(--red);color:var(--red);background:#fff5f5;}
+.filter-status{font-size:10px;color:var(--muted);text-align:center;}
 
-        .kpi-label {
-            font-size: 12px;
-            color: #999;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
+/* ── MAIN ─── */
+.main{margin-left:var(--side-w);flex:1;min-width:0;padding:20px 22px;}
 
-        .kpi-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
+/* KPIs */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px;}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi.c-blue::after{background:var(--accent);}
+.kpi.c-green::after{background:var(--green);}
+.kpi.c-purple::after{background:var(--orange);}
+.kpi.c-red::after{background:var(--red);}
+.kpi.c-teal::after{background:var(--green);}
+.kpi.c-red .kpi-val{color:var(--red);}
+.kpi.c-teal .kpi-val{color:#00897b;}
+.kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+.kpi-val{font-size:36px;font-weight:800;line-height:1;letter-spacing:-1px;}
+.kpi.c-blue .kpi-val{color:var(--accent);}
+.kpi.c-green .kpi-val{color:var(--green);}
+.kpi.c-purple .kpi-val{color:var(--orange);}
+.kpi-sub{font-size:11px;color:var(--muted);}
 
-        .kpi-unit {
-            font-size: 12px;
-            color: #bbb;
-        }
+/* Cards */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start;}
+.grid-1{margin-bottom:16px;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);min-height:200px;}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;}
+.card-title-left{display:flex;align-items:center;gap:8px;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+canvas{max-height:260px;display:block;width:100%!important;}
+.empty-state{text-align:center;padding:40px;color:var(--muted);font-size:12px;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--panel2);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);}
 
-        /* Colores específicos para tarjetas */
-        .kpi-rutas { border-top-color: #667eea; }
-        .kpi-km { border-top-color: #764ba2; }
-        .kpi-disponibles { border-top-color: #48bb78; }
-        .kpi-recuperar { border-top-color: #f56565; }
-        .kpi-porcentaje { border-top-color: #eab308; }
-        .kpi-sobre50 { border-top-color: #48bb78; }
-        .kpi-bajo25 { border-top-color: #f56565; }
+/* ── Tabla de Rutas ── */
+.tbl-wrap{overflow-x:auto;}
+.rtbl{width:100%;border-collapse:collapse;font-size:12px;}
+.rtbl thead tr{border-bottom:2px solid var(--border);}
+.rtbl th{padding:9px 12px;text-align:left;color:var(--muted);font-weight:700;
+  font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;
+  background:var(--panel2);}
+.rtbl th[data-col]{cursor:pointer;user-select:none;transition:color .15s;}
+.rtbl th[data-col]:hover{color:var(--accent);}
+.rtbl th.sort-asc::after{content:' ▲';font-size:8px;}
+.rtbl th.sort-desc::after{content:' ▼';font-size:8px;}
+.rtbl td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;}
+.rtbl tr:hover td{background:var(--panel2);}
+.rtbl tr:last-child td{border-bottom:none;}
+.est-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:12px;
+  font-size:10px;font-weight:700;text-transform:uppercase;}
+.est-activa  {background:rgba(0,137,123,.12);color:#00897b;}
+.est-liberada{background:rgba(245,195,66,.12);color:#c8971e;}
+.est-construc{background:rgba(245,124,0,.12);color:#f57c00;}
+.est-espera  {background:rgba(107,107,107,.12);color:#6b7a99;}
+.pct-wrap{display:flex;align-items:center;gap:8px;}
+.pct-bg  {flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:55px;}
+.pct-fill{height:100%;border-radius:3px;}
+.tbl-footer{display:flex;gap:20px;flex-wrap:wrap;padding:10px 0 2px;font-size:11px;color:var(--muted);}
+.tbl-footer b{color:var(--text);}
 
-        .section-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
-        }
+/* tooltip nodos mapa */
+.nodo-tooltip {
+  background:#fff !important;
+  border:1px solid #e0e4ed !important;
+  border-radius:6px !important;
+  box-shadow:0 2px 8px rgba(0,0,0,.12) !important;
+  padding:4px 9px !important;
+  font-size:11px !important;
+  color:#1a2340 !important;
+}
+.nodo-tooltip::before { display:none !important; }
 
-        .rutas-criticas-container {
-            margin-bottom: 40px;
-        }
-
-        .rutas-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .ruta-card {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s;
-            border-left: 5px solid #f56565;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .ruta-card:hover {
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-            transform: translateY(-4px);
-        }
-
-        .ruta-card-header {
-            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
-            color: white;
-            padding: 15px;
-        }
-
-        .ruta-nombre {
-            font-weight: 700;
-            font-size: 13px;
-            margin-bottom: 5px;
-            line-height: 1.4;
-            word-break: break-word;
-        }
-
-        .ruta-provincia {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-
-        .disponibilidad-badge {
-            display: inline-block;
-            background: white;
-            color: #f56565;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 700;
-            margin-top: 8px;
-        }
-
-        .ruta-card-body {
-            padding: 20px;
-            display: none;
-            animation: slideDown 0.3s ease-out;
-        }
-
-        .ruta-card:hover .ruta-card-body {
-            display: block;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .ruta-detail {
-            margin-bottom: 12px;
-            padding: 10px;
-            background: #f9f9f9;
-            border-radius: 6px;
-            border-left: 3px solid #667eea;
-        }
-
-        .ruta-detail-label {
-            font-size: 11px;
-            color: #999;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 4px;
-            letter-spacing: 0.5px;
-        }
-
-        .ruta-detail-value {
-            font-size: 16px;
-            font-weight: 700;
-            color: #333;
-        }
-
-        .ruta-detail-value span {
-            font-size: 12px;
-            color: #666;
-            font-weight: normal;
-            margin-left: 5px;
-        }
-
-        .plan-accion-container {
-            margin-bottom: 40px;
-        }
-
-        .plan-timeline {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
-
-        .quincena-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            border-left: 5px solid #667eea;
-        }
-
-        .quincena-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 14px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .quincena-titulo {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .quincena-fechas {
-            font-size: 13px;
-            opacity: 0.95;
-            background: rgba(255,255,255,0.15);
-            padding: 4px 12px;
-            border-radius: 20px;
-        }
-
-        .quincena-rutas {
-            padding: 10px 0;
-        }
-
-        .plan-ruta-item {
-            display: grid;
-            grid-template-columns: 36px 1fr auto auto auto;
-            align-items: center;
-            gap: 14px;
-            padding: 10px 20px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .plan-ruta-item:last-child {
-            border-bottom: none;
-        }
-
-        .plan-orden {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: #667eea;
-            color: white;
-            font-size: 12px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .plan-ruta-nombre {
-            font-size: 13px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .plan-ruta-provincia {
-            font-size: 11px;
-            color: #999;
-            text-transform: uppercase;
-            white-space: nowrap;
-        }
-
-        .plan-ruta-disp {
-            font-size: 12px;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 20px;
-            white-space: nowrap;
-            color: white;
-        }
-
-        .plan-ruta-hilos {
-            font-size: 12px;
-            color: #666;
-            white-space: nowrap;
-        }
-
-        @media (max-width: 768px) {
-            .plan-ruta-item {
-                grid-template-columns: 28px 1fr;
-            }
-            .plan-ruta-provincia, .plan-ruta-hilos {
-                display: none;
-            }
-        }
-
-        .map-container {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            height: 700px;
-            margin-top: 40px;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        .legend {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            margin-top: 30px;
-        }
-
-        .legend-title {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        .legend-items {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .legend-color {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-            flex-shrink: 0;
-        }
-
-        .legend-label {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .info-box {
-            background: #e6f2ff;
-            border-left: 4px solid #667eea;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-
-        .info-box p {
-            font-size: 14px;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        .hover-hint {
-            font-size: 11px;
-            color: #999;
-            font-style: italic;
-            margin-top: 5px;
-        }
-
-        @media (max-width: 768px) {
-            .kpi-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .rutas-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header h1 {
-                font-size: 24px;
-            }
-
-            .ruta-nombre {
-                font-size: 12px;
-            }
-        }
-    </style>
+.dtbl-wrap{overflow-x:auto;overflow-y:auto;max-height:480px;}
+.dtbl{width:100%;border-collapse:collapse;font-size:12px;}
+.dtbl thead{position:sticky;top:0;z-index:2;}
+.dtbl thead tr{border-bottom:2px solid var(--border);}
+.dtbl th{
+  padding:10px 12px;text-align:left;color:var(--accent);font-weight:700;
+  font-size:11px;white-space:nowrap;background:var(--panel2);cursor:pointer;
+  user-select:none;border-bottom:2px solid var(--border);
+}
+.dtbl th:hover{color:var(--orange);}
+.dtbl th.dsort-asc::after{content:' ↑';font-size:10px;color:var(--orange);}
+.dtbl th.dsort-desc::after{content:' ↓';font-size:10px;color:var(--orange);}
+.dtbl td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;}
+.dtbl tr:hover td{background:var(--panel2);}
+.dtbl tr:last-child td{border-bottom:none;}
+.dtbl .td-cua{color:var(--accent);font-weight:600;}
+.dtbl .td-num{color:var(--green);font-weight:600;}
+.dtbl .td-dur{color:var(--orange);font-weight:700;text-align:right;}
+.d-tipo{display:inline-flex;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;}
+.d-tipo-tarea{background:rgba(79,142,247,.12);color:#1a3a7a;}
+.d-tipo-caso {background:rgba(106,27,154,.12);color:#6a1b9a;}
+.d-area{display:inline-flex;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;
+  background:rgba(0,137,123,.1);color:#00695c;}
+.dtbl-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.dtbl-info{font-size:11px;color:var(--muted);}
+.dtbl-search{
+  padding:5px 12px;border:1px solid var(--border);border-radius:6px;
+  background:var(--panel2);color:var(--text);font-size:11px;width:220px;
+  outline:none;
+}
+.dtbl-search:focus{border-color:var(--accent);}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>📡 Estado de Hilos de Rutas Interurbanas</h1>
-            <p>Dashboard integral de disponibilidad y estado de infraestructura de fibra óptica</p>
-        </div>
 
-        <!-- KPI Grid -->
-        <div class="kpi-grid">
-            <div class="kpi-card kpi-rutas">
-                <div class="kpi-label">Total de Rutas</div>
-                <div class="kpi-value">53</div>
-                <div class="kpi-unit">rutas monitoreadas</div>
-            </div>
+<nav>
+  <div class="brand">
+    <span class="brand-icon">⚡</span>
+    <div class="brand-text"><strong>INTERURBANAS</strong><small>Dashboard de Actividades · 2026</small></div>
+  </div>
+  <div class="nav-title">
+    <h1>Actividades de <span>Cuadrillas</span></h1>
+    <p>Período: Enero – Junio 2026 · TELCONET / ECUANET / MEGADATOS</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="nav-badge" id="nav-badge">7,839 registros</div>
+    <div class="nav-right" id="nav-clock">—</div>
+  </div>
+</nav>
 
-            <div class="kpi-card kpi-km">
-                <div class="kpi-label">Total de Kilómetros</div>
-                <div class="kpi-value">2,010</div>
-                <div class="kpi-unit">km de fibra</div>
-            </div>
+<div class="shell">
 
-            <div class="kpi-card kpi-disponibles">
-                <div class="kpi-label">Hilos Disponibles</div>
-                <div class="kpi-value">1,071</div>
-                <div class="kpi-unit">hilos nodo-nodo</div>
-            </div>
+<aside class="sidebar">
+  <div class="chips-area" id="chips-area"></div>
 
-            <div class="kpi-card kpi-recuperar">
-                <div class="kpi-label">Hilos por Recuperar</div>
-                <div class="kpi-value">879</div>
-                <div class="kpi-unit">hilos caídos</div>
-            </div>
+  <!-- AÑO -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('anio')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>AÑO</span>
+      <span class="fg-arr open" id="arr-anio">▼</span>
+    </div>
+    <div class="fg-body open" id="body-anio">
+      <div class="fo sel" data-key="anio" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todos</span></div>
+      <div class="fo" data-key="anio" data-val="2026"><div class="fo-chk"></div><span class="fo-lbl">2026</span><span class="fo-cnt">7,839</span></div>
+    </div>
+  </div>
 
-            <div class="kpi-card kpi-porcentaje">
-                <div class="kpi-label">Disponibilidad General</div>
-                <div class="kpi-value">52.86%</div>
-                <div class="kpi-unit">del total de hilos</div>
-            </div>
+  <!-- MES -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('mes')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>MES</span>
+      <span class="fg-arr open" id="arr-mes">▼</span>
+    </div>
+    <div class="fg-body open" id="body-mes">
+      <div class="fo sel" data-key="mes" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todos</span></div>
+      <div class="fo" data-key="mes" data-val="1"><div class="fo-chk"></div><span class="fo-lbl">Enero</span><span class="fo-cnt">1,370</span></div>
+      <div class="fo" data-key="mes" data-val="2"><div class="fo-chk"></div><span class="fo-lbl">Febrero</span><span class="fo-cnt">1,204</span></div>
+      <div class="fo" data-key="mes" data-val="3"><div class="fo-chk"></div><span class="fo-lbl">Marzo</span><span class="fo-cnt">1,503</span></div>
+      <div class="fo" data-key="mes" data-val="4"><div class="fo-chk"></div><span class="fo-lbl">Abril</span><span class="fo-cnt">1,267</span></div>
+      <div class="fo" data-key="mes" data-val="5"><div class="fo-chk"></div><span class="fo-lbl">Mayo</span><span class="fo-cnt">1,384</span></div>
+      <div class="fo" data-key="mes" data-val="6"><div class="fo-chk"></div><span class="fo-lbl">Junio</span><span class="fo-cnt">1,111</span></div>
+    </div>
+  </div>
 
-            <div class="kpi-card kpi-sobre50">
-                <div class="kpi-label">Rutas >50% Disponibilidad</div>
-                <div class="kpi-value">20</div>
-                <div class="kpi-unit">38% del total</div>
-            </div>
+  <!-- CUADRILLA -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('cua')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>CUADRILLA</span>
+      <span class="fg-arr" id="arr-cua">▼</span>
+    </div>
+    <div class="fg-body" id="body-cua">
+      <div class="fo sel" data-key="cua" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todas</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV SUC INT 02"><div class="fo-chk"></div><span class="fo-lbl">SUC-INT 02</span><span class="fo-cnt">860</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV SUC INT 01"><div class="fo-chk"></div><span class="fo-lbl">SUC-INT 01</span><span class="fo-cnt">812</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV ZHU INT 01"><div class="fo-chk"></div><span class="fo-lbl">ZHU-INT 01</span><span class="fo-cnt">806</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV STA INT 01"><div class="fo-chk"></div><span class="fo-lbl">STA-INT 01</span><span class="fo-cnt">741</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV GQZ INT 01"><div class="fo-chk"></div><span class="fo-lbl">GQZ-INT 01</span><span class="fo-cnt">714</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV CUE INT 02"><div class="fo-chk"></div><span class="fo-lbl">CUE-INT 02</span><span class="fo-cnt">662</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV CUE INT 04"><div class="fo-chk"></div><span class="fo-lbl">CUE-INT 04</span><span class="fo-cnt">644</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV CUE INT 01"><div class="fo-chk"></div><span class="fo-lbl">CUE-INT 01</span><span class="fo-cnt">639</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV CUE INT 03"><div class="fo-chk"></div><span class="fo-lbl">CUE-INT 03</span><span class="fo-cnt">630</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV ONA INT 01"><div class="fo-chk"></div><span class="fo-lbl">ONA-INT 01</span><span class="fo-cnt">467</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV STA INT 02"><div class="fo-chk"></div><span class="fo-lbl">STA-INT 02</span><span class="fo-cnt">442</span></div>
+      <div class="fo" data-key="cua" data-val="CUE PROV GLT INT 01"><div class="fo-chk"></div><span class="fo-lbl">GLT-INT 01</span><span class="fo-cnt">422</span></div>
+    </div>
+  </div>
 
-            <div class="kpi-card kpi-bajo25">
-                <div class="kpi-label">Rutas <25% Disponibilidad</div>
-                <div class="kpi-value">14</div>
-                <div class="kpi-unit">26% del total</div>
-            </div>
+  <!-- ÁREA -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('area')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>TAREA POR ÁREA</span>
+      <span class="fg-arr" id="arr-area">▼</span>
+    </div>
+    <div class="fg-body" id="body-area">
+      <div class="fo sel" data-key="area" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todas</span></div>
+      <div class="fo" data-key="area" data-val="INTERURBANO"><div class="fo-chk"></div><span class="fo-lbl">Interurbano</span><span class="fo-cnt">6,071</span></div>
+      <div class="fo" data-key="area" data-val="INSTALACIÓN"><div class="fo-chk"></div><span class="fo-lbl">Instalación</span><span class="fo-cnt">606</span></div>
+      <div class="fo" data-key="area" data-val="SOPORTE"><div class="fo-chk"></div><span class="fo-lbl">Soporte</span><span class="fo-cnt">568</span></div>
+      <div class="fo" data-key="area" data-val="RETIRO"><div class="fo-chk"></div><span class="fo-lbl">Retiro</span><span class="fo-cnt">435</span></div>
+      <div class="fo" data-key="area" data-val="ELÉCTRICO"><div class="fo-chk"></div><span class="fo-lbl">Eléctrico</span><span class="fo-cnt">90</span></div>
+      <div class="fo" data-key="area" data-val="CONSTRUCCIÓN"><div class="fo-chk"></div><span class="fo-lbl">Construcción</span><span class="fo-cnt">66</span></div>
+      <div class="fo" data-key="area" data-val="LAN"><div class="fo-chk"></div><span class="fo-lbl">LAN</span><span class="fo-cnt">3</span></div>
+    </div>
+  </div>
 
-            <div class="kpi-card" style="border-top-color: #a78bfa;">
-                <div class="kpi-label">Total de Hilos</div>
-                <div class="kpi-value">2,026</div>
-                <div class="kpi-unit">capacidad total</div>
-            </div>
-        </div>
+  <!-- TIPO -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('tipo')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>TIPO</span>
+      <span class="fg-arr" id="arr-tipo">▼</span>
+    </div>
+    <div class="fg-body" id="body-tipo">
+      <div class="fo sel" data-key="tipo" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Tarea y Caso</span></div>
+      <div class="fo" data-key="tipo" data-val="TAREA"><div class="fo-chk"></div><span class="fo-lbl">Tarea</span><span class="fo-cnt">7,383</span></div>
+      <div class="fo" data-key="tipo" data-val="CASO"><div class="fo-chk"></div><span class="fo-lbl">Caso</span><span class="fo-cnt">456</span></div>
+    </div>
+  </div>
 
-        <!-- Info Box -->
-        <div class="info-box">
-            <p>
-                <strong>ℹ️ Nota:</strong> Las rutas con disponibilidad menor al 20% requieren atención inmediata. 
-                Posicione el cursor sobre cada ruta para ver detalles de hilos ocupados, disponibles (NODO-NODO) y por recuperar.
-            </p>
-        </div>
+  <!-- EMPRESA -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('emp')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><path d="M8 7V5a2 2 0 0 0-4 0v2"/></svg>EMPRESA</span>
+      <span class="fg-arr open" id="arr-emp">▼</span>
+    </div>
+    <div class="fg-body open" id="body-emp">
+      <div class="fo sel" data-key="emp" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todas</span></div>
+      <div class="fo" data-key="emp" data-val="TELCONET"><div class="fo-chk"></div><span class="fo-lbl">Telconet</span><span class="fo-cnt">6,408</span></div>
+      <div class="fo" data-key="emp" data-val="MEGADATOS"><div class="fo-chk"></div><span class="fo-lbl">Megadatos</span><span class="fo-cnt">734</span></div>
+      <div class="fo" data-key="emp" data-val="ECUANET"><div class="fo-chk"></div><span class="fo-lbl">Ecuanet</span><span class="fo-cnt">697</span></div>
+    </div>
+  </div>
 
-        <!-- Rutas Críticas -->
-        <div class="rutas-criticas-container">
-            <h2 class="section-title">⚠️ Rutas con Disponibilidad < 20%</h2>
-            
-            <div class="rutas-grid" id="rutasGrid">
-                <!-- Las tarjetas se cargarán dinámicamente con JavaScript -->
-            </div>
-        </div>
+  <!-- NOMBRE DE TAREA -->
+  <div class="fg">
+    <div class="fg-hd" onclick="toggleFG('nombre')">
+      <span class="fg-hd-left"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>NOMBRE DE TAREA</span>
+      <span class="fg-arr" id="arr-nombre">▼</span>
+    </div>
+    <div class="fg-body" id="body-nombre">
+      <div class="fo sel" data-key="nombre" data-val="all"><div class="fo-chk">✓</div><span class="fo-lbl">Todas</span></div>
+      <div class="fo" data-key="nombre" data-val="Transferencia de cables"><div class="fo-chk"></div><span class="fo-lbl">Transferencia cables</span><span class="fo-cnt">3,104</span></div>
+      <div class="fo" data-key="nombre" data-val="Recorrido interurbano"><div class="fo-chk"></div><span class="fo-lbl">Recorrido interurbano</span><span class="fo-cnt">724</span></div>
+      <div class="fo" data-key="nombre" data-val="Desbroce de Maleza"><div class="fo-chk"></div><span class="fo-lbl">Desbroce de Maleza</span><span class="fo-cnt">672</span></div>
+      <div class="fo" data-key="nombre" data-val="FIBRA: INSTALACION UM"><div class="fo-chk"></div><span class="fo-lbl">Fibra: Instalación UM</span><span class="fo-cnt">537</span></div>
+      <div class="fo" data-key="nombre" data-val="Mantenimiento De Ruta"><div class="fo-chk"></div><span class="fo-lbl">Mantenimiento Ruta</span><span class="fo-cnt">254</span></div>
+      <div class="fo" data-key="nombre" data-val="Levantamiento De Información"><div class="fo-chk"></div><span class="fo-lbl">Levantamiento Info</span><span class="fo-cnt">237</span></div>
+      <div class="fo" data-key="nombre" data-val="Desmontaje de Fibra Optica Cliente"><div class="fo-chk"></div><span class="fo-lbl">Desmontaje F.O.</span><span class="fo-cnt">222</span></div>
+      <div class="fo" data-key="nombre" data-val="RETIRAR EQUIPO"><div class="fo-chk"></div><span class="fo-lbl">Retirar Equipo</span><span class="fo-cnt">216</span></div>
+    </div>
+  </div>
 
-        <!-- Mapa -->
-        <!-- Plan de Acción -->
-        <div class="plan-accion-container">
-            <h2 class="section-title">🛠️ Plan de Acción - Recuperación de Hilos (3 Meses)</h2>
+  <div class="sidebar-foot">
+    <div class="filter-status" id="filter-status">Sin filtros activos</div>
+    <button class="btn-clear" id="btn-clear">✕ Limpiar filtros</button>
+  </div>
+</aside>
 
-            <div class="info-box">
-                <p>
-                    <strong>ℹ️ Objetivo:</strong> Recuperar los hilos caídos en las rutas más críticas mediante trabajos de bajo impacto,
-                    ejecutando <strong>una intervención cada 15 días</strong> a lo largo de un plazo de <strong>3 meses</strong>.
-                    El plan abarca únicamente las rutas con <strong>disponibilidad menor al 10%</strong>, ordenadas de mayor a menor
-                    criticidad, cubriendo un total de <strong>7 rutas</strong> a lo largo de 6 quincenas.
-                </p>
-            </div>
+<main class="main">
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi c-blue"><div class="kpi-lbl">Cuadrillas Activas</div><div class="kpi-val" id="k-cua">12</div><div class="kpi-sub">en el período</div></div>
+    <div class="kpi c-green"><div class="kpi-lbl">Total Tareas</div><div class="kpi-val" id="k-total">7,839</div><div class="kpi-sub" id="k-total-sub">registros filtrados</div></div>
+    <div class="kpi c-purple"><div class="kpi-lbl">Tareas Diarias / Cuadrilla</div><div class="kpi-val" id="k-daily">4.4</div><div class="kpi-sub">promedio por día activo</div></div>
+    <div class="kpi c-red">
+      <div class="kpi-lbl">Mayor TTG del Mes</div>
+      <div class="kpi-val" id="k-ttg-max" style="font-size:18px;letter-spacing:0;">—</div>
+      <div class="kpi-sub" id="k-ttg-max-sub">cargando...</div>
+    </div>
+    <div class="kpi c-teal">
+      <div class="kpi-lbl">Duración Promedio</div>
+      <div class="kpi-val" id="k-dur-avg">—</div>
+      <div class="kpi-sub">horas por tarea</div>
+    </div>
+  </div>
 
-            <div class="plan-timeline">
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 1 de 6</div>
-                        <div class="quincena-fechas">1 Jul 2026 — 15 Jul 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">1</div>
-                            <div class="plan-ruta-nombre">SIG-Sigsig (E)/Granadilla (O)-F01-BB</div>
-                            <div class="plan-ruta-provincia">AZUAY</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">0.00%</div>
-                            <div class="plan-ruta-hilos">11 hilos x recuperar</div>
-                        </div>
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">2</div>
-                            <div class="plan-ruta-nombre">GLQ-Gualaquiza  (O)/Granadilla (O)-F01-BB</div>
-                            <div class="plan-ruta-provincia">MORONA SANTIAGO</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">0.00%</div>
-                            <div class="plan-ruta-hilos">10 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-title-left"><div class="dot" style="background:var(--accent)"></div>TAREAS POR CUADRILLA</div></div>
+      <canvas id="ch-cua" style="min-height:260px;max-height:280px;"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-title-left"><div class="dot" style="background:var(--orange)"></div>DISTRIBUCIÓN POR ÁREA</div></div>
+      <canvas id="ch-area" style="min-height:260px;max-height:280px;"></canvas>
+    </div>
+  </div>
 
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 2 de 6</div>
-                        <div class="quincena-fechas">16 Jul 2026 — 30 Jul 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">3</div>
-                            <div class="plan-ruta-nombre">CNR-La Troncal 2 (E)/Zhud (O)-F01-BB</div>
-                            <div class="plan-ruta-provincia">CAÑAR</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">2.08%</div>
-                            <div class="plan-ruta-hilos">40 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-title-left"><div class="dot" style="background:var(--green)"></div>TAREAS POR EMPRESA</div></div>
+      <canvas id="ch-emp" style="min-height:280px;max-height:300px;"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-title-left"><div class="dot" style="background:var(--purple)"></div>TAREAS MÁS FRECUENTES</div></div>
+      <canvas id="ch-top" style="min-height:280px;max-height:300px;"></canvas>
+    </div>
+  </div>
 
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 3 de 6</div>
-                        <div class="quincena-fechas">31 Jul 2026 — 14 Ago 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">4</div>
-                            <div class="plan-ruta-nombre">CNR-Javier Loyola(NE)- Bellavista Cuenca (A) / Colon Cañar (NE)-F01-D02-DB</div>
-                            <div class="plan-ruta-provincia">CAÑAR</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">4.17%</div>
-                            <div class="plan-ruta-hilos">42 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 4 de 6</div>
-                        <div class="quincena-fechas">15 Ago 2026 — 29 Ago 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">5</div>
-                            <div class="plan-ruta-nombre">CUE-Bellavista Cuenca (A)/Colon Cañar (NE)-F02-BB</div>
-                            <div class="plan-ruta-provincia">CUENCA</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">4.17%</div>
-                            <div class="plan-ruta-hilos">33 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 5 de 6</div>
-                        <div class="quincena-fechas">30 Ago 2026 — 13 Sep 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">6</div>
-                            <div class="plan-ruta-nombre">GLCO-Gualaceo (E)/Bellavista Cuenca (A)-Pahuancay (O)-F01-BB</div>
-                            <div class="plan-ruta-provincia">AZUAY</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">6.25%</div>
-                            <div class="plan-ruta-hilos">44 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="quincena-card">
-                    <div class="quincena-header">
-                        <div class="quincena-titulo">📅 Quincena 6 de 6</div>
-                        <div class="quincena-fechas">14 Sep 2026 — 28 Sep 2026</div>
-                    </div>
-                    <div class="quincena-rutas">
-                        <div class="plan-ruta-item">
-                            <div class="plan-orden">7</div>
-                            <div class="plan-ruta-nombre">CUE-Bellavista Cuenca (A)/Oña (O)-F01-BB</div>
-                            <div class="plan-ruta-provincia">CUENCA</div>
-                            <div class="plan-ruta-disp" style="background: #dc2626;">8.33%</div>
-                            <div class="plan-ruta-hilos">33 hilos x recuperar</div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <h2 class="section-title">🗺️ Mapa de Rutas - Codificación por Disponibilidad</h2>
+  <div class="grid-1">
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-left"><div class="dot" style="background:var(--yellow)"></div>TTG MENSUAL POR CUADRILLAS</div>
         
-        <div class="legend">
-            <div class="legend-title">Leyenda de Colores</div>
-            <div class="legend-items">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #2563eb;"></div>
-                    <div class="legend-label"><strong>Azul:</strong> Disponibilidad > 75%</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #16a34a;"></div>
-                    <div class="legend-label"><strong>Verde:</strong> 50% - 75%</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #eab308;"></div>
-                    <div class="legend-label"><strong>Amarillo:</strong> 25% - 50%</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #dc2626;"></div>
-                    <div class="legend-label"><strong>Rojo:</strong> < 25%</div>
-                </div>
-            </div>
-        </div>
+      </div>
+      <canvas id="ch-ttg" style="min-height:300px;max-height:320px;"></canvas>
+    </div>
+  </div>
 
-        <div class="map-container">
-            <div id="map"></div>
-        </div>
+
+
+
+
+
+  <div class="grid-2" style="align-items:start;">
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-left"><div class="dot" style="background:var(--red)"></div>MAPA DE RUTAS INTERURBANAS</div>
+        
+      </div>
+      <div id="map-legend" style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:12px;"></div>
+      <div id="mapa-rutas" style="height:500px;border-radius:8px;overflow:hidden;border:1px solid var(--border);"></div>
     </div>
 
-    <script>
-        // Datos completos de todas las rutas
-        const todasLasRutas = [
-            {"nombre": "ALA-Alausi SDH (O)/Zhud (O)-F01-BB", "provincia": "CAÑAR", "distancia": 46, "hilos_total": 48, "hilos_nodo": 39, "hilos_ocupados": 8, "hilos_recuperar": 1, "disponibilidad": 81.25, "coord_inicio": {"lat": -2.459628, "lng": -79.004278}, "coord_fin": {"lat": -2.347146, "lng": -78.934662}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/ColonCañar (NE)-F01-BB", "provincia": "CUENCA", "distancia": 61, "hilos_total": 48, "hilos_nodo": 13, "hilos_ocupados": 13, "hilos_recuperar": 22, "disponibilidad": 27.08, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -2.566028, "lng": -78.938088}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Colon Cañar (NE)-F02-BB", "provincia": "CUENCA", "distancia": 76, "hilos_total": 48, "hilos_nodo": 2, "hilos_ocupados": 13, "hilos_recuperar": 33, "disponibilidad": 4.17, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -2.566028, "lng": -78.938088}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Giron (NE)-F01-BB", "provincia": "CUENCA", "distancia": 56, "hilos_total": 48, "hilos_nodo": 5, "hilos_ocupados": 12, "hilos_recuperar": 31, "disponibilidad": 10.42, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -3.160695, "lng": -79.145868}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Gualaceo (E)-F01-BB", "provincia": "CUENCA", "distancia": 65, "hilos_total": 48, "hilos_nodo": 48, "hilos_ocupados": 0, "hilos_recuperar": 0, "disponibilidad": 100.0, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -2.888778, "lng": -78.778145}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Pahuancay (O)-F01-BB", "provincia": "CUENCA", "distancia": 90, "hilos_total": 48, "hilos_nodo": 14, "hilos_ocupados": 7, "hilos_recuperar": 27, "disponibilidad": 29.17, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -2.636242, "lng": -78.600918}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Oña (O)-F01-BB", "provincia": "CUENCA", "distancia": 113, "hilos_total": 48, "hilos_nodo": 4, "hilos_ocupados": 11, "hilos_recuperar": 33, "disponibilidad": 8.33, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -3.470626, "lng": -79.154971}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Sigsig (E)-F01-BB", "provincia": "CUENCA", "distancia": 59, "hilos_total": 48, "hilos_nodo": 7, "hilos_ocupados": 14, "hilos_recuperar": 27, "disponibilidad": 14.58, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -3.050488, "lng": -78.793128}},
-            {"nombre": "CUE-Bellavista Cuenca (A)/Molleturo (O)-F01-BB", "provincia": "CUENCA", "distancia": 67, "hilos_total": 48, "hilos_nodo": 36, "hilos_ocupados": 2, "hilos_recuperar": 10, "disponibilidad": 75.0, "coord_inicio": {"lat": -2.88881554, "lng": -79.0126183}, "coord_fin": {"lat": -2.765791, "lng": -79.39622}},
-            {"nombre": "CUE-Ñuñurco (NE)-Bellavista Cuenca(A)/Pahuancay (O)-F01-DB", "provincia": "CUENCA", "distancia": 42, "hilos_total": 5, "hilos_nodo": 3, "hilos_ocupados": 2, "hilos_recuperar": 21, "disponibilidad": 11.54, "coord_inicio": {"lat": -2.761497, "lng": -78.671846}, "coord_fin": {"lat": -2.760794, "lng": -78.677397}},
-            {"nombre": "CUE-Villaflor (NE) - Bellavista Cuenca(A)/Colon Cañar (NE)-F01-DB", "provincia": "CUENCA", "distancia": 17, "hilos_total": 12, "hilos_nodo": 5, "hilos_ocupados": 3, "hilos_recuperar": 4, "disponibilidad": 41.67, "coord_inicio": {"lat": -2.829142, "lng": -78.802993}, "coord_fin": {"lat": -2.833508, "lng": -78.878707}},
-            {"nombre": "CNR-Hostal Azogues (E)/Paute (E)-F01-BB", "provincia": "CAÑAR", "distancia": 28, "hilos_total": 48, "hilos_nodo": 34, "hilos_ocupados": 2, "hilos_recuperar": 12, "disponibilidad": 70.83, "coord_inicio": {"lat": -2.739365, "lng": -78.845337}, "coord_fin": {"lat": -2.77797, "lng": -78.766982}},
-            {"nombre": "CNR-Burgay (E)-Bellavista Cuenca (A)/Cañar (NE)/F01-D01-DB", "provincia": "CAÑAR", "distancia": 12, "hilos_total": 12, "hilos_nodo": 7, "hilos_ocupados": 5, "hilos_recuperar": 0, "disponibilidad": 58.33, "coord_inicio": {"lat": -2.708056, "lng": -78.893056}, "coord_fin": {"lat": -2.706042, "lng": -78.900608}},
-            {"nombre": "CNR-Colon Cañar (NE)/Tambo cue (NE)-F01-BB", "provincia": "CAÑAR", "distancia": 10, "hilos_total": 48, "hilos_nodo": 23, "hilos_ocupados": 8, "hilos_recuperar": 17, "disponibilidad": 47.92, "coord_inicio": {"lat": -2.566028, "lng": -78.938088}, "coord_fin": {"lat": -2.459628, "lng": -79.004278}},
-            {"nombre": "CNR-Colon Cañar (NE)/Tambo cue (NE)-F02-BB", "provincia": "CAÑAR", "distancia": 12, "hilos_total": 48, "hilos_nodo": 35, "hilos_ocupados": 2, "hilos_recuperar": 11, "disponibilidad": 72.92, "coord_inicio": {"lat": -2.566028, "lng": -78.938088}, "coord_fin": {"lat": -2.459628, "lng": -79.004278}},
-            {"nombre": "GTRO-Gualleturo cue (E)/La Troncal 2 (O)-Zhud (O)-F01-BB", "provincia": "CAÑAR", "distancia": 35, "hilos_total": 13, "hilos_nodo": 12, "hilos_ocupados": 1, "hilos_recuperar": 34, "disponibilidad": 25.53, "coord_inicio": {"lat": -2.524809, "lng": -79.130425}, "coord_fin": {"lat": -2.451404, "lng": -79.107239}},
-            {"nombre": "CNR-Gualleturo cue (E)/La Troncal 2 (O)-Zhud (O)-F01-D01-DB", "provincia": "CAÑAR", "distancia": 23, "hilos_total": 48, "hilos_nodo": 11, "hilos_ocupados": 2, "hilos_recuperar": 35, "disponibilidad": 22.92, "coord_inicio": {"lat": -2.524809, "lng": -79.130425}, "coord_fin": {"lat": -2.47346, "lng": -79.183197}},
-            {"nombre": "CNR-Javier Loyola(NE)- Bellavista Cuenca (A) / Colon Cañar (NE)-F01-D02-DB", "provincia": "CAÑAR", "distancia": 15, "hilos_total": 48, "hilos_nodo": 2, "hilos_ocupados": 4, "hilos_recuperar": 42, "disponibilidad": 4.17, "coord_inicio": null, "coord_fin": null},
-            {"nombre": "CNR-La Troncal 2 (E)/Zhud (O)-F01-BB", "provincia": "CAÑAR", "distancia": 80, "hilos_total": 48, "hilos_nodo": 1, "hilos_ocupados": 7, "hilos_recuperar": 40, "disponibilidad": 2.08, "coord_inicio": {"lat": -2.459628, "lng": -79.004278}, "coord_fin": {"lat": -2.42647, "lng": -79.344298}},
-            {"nombre": "CNR-Zhud (O)/Suscal (E)-F02-BB", "provincia": "CAÑAR", "distancia": 15, "hilos_total": 48, "hilos_nodo": 42, "hilos_ocupados": 2, "hilos_recuperar": 4, "disponibilidad": 87.5, "coord_inicio": {"lat": -2.459628, "lng": -79.004278}, "coord_fin": {"lat": -2.436544, "lng": -79.052309}},
-            {"nombre": "CNR-Zhud (O)/Tambo cue (NE)-F01-BB", "provincia": "CAÑAR", "distancia": 21, "hilos_total": 12, "hilos_nodo": 6, "hilos_ocupados": 6, "hilos_recuperar": 0, "disponibilidad": 50.0, "coord_inicio": {"lat": -2.459628, "lng": -79.004278}, "coord_fin": {"lat": -2.508243, "lng": -78.92756}},
-            {"nombre": "CNR-Zhud (O)/Colon Canar (NE)-F02-BB", "provincia": "CAÑAR", "distancia": 29, "hilos_total": 24, "hilos_nodo": 7, "hilos_ocupados": 1, "hilos_recuperar": 16, "disponibilidad": 29.17, "coord_inicio": {"lat": -2.459628, "lng": -79.004278}, "coord_fin": {"lat": -2.566028, "lng": -78.938088}},
-            {"nombre": "CHLG-Chordeleg (E)/Sigsig (E)-F01-BB", "provincia": "AZUAY", "distancia": 32, "hilos_total": 48, "hilos_nodo": 22, "hilos_ocupados": 8, "hilos_recuperar": 18, "disponibilidad": 45.83, "coord_inicio": {"lat": -2.920383, "lng": -78.774679}, "coord_fin": {"lat": -3.050488, "lng": -78.793128}},
-            {"nombre": "GIR-Giron (NE)/San Fernando  (E)-F01-BB", "provincia": "AZUAY", "distancia": 21, "hilos_total": 24, "hilos_nodo": 9, "hilos_ocupados": 0, "hilos_recuperar": 15, "disponibilidad": 37.5, "coord_inicio": {"lat": -3.160695, "lng": -79.145868}, "coord_fin": {"lat": -3.146065, "lng": -79.251742}},
-            {"nombre": "GLCO-Gualaceo (E)/Bellavista Cuenca (A)-Pahuancay (O)-F01-BB", "provincia": "AZUAY", "distancia": 0, "hilos_total": 48, "hilos_nodo": 3, "hilos_ocupados": 1, "hilos_recuperar": 44, "disponibilidad": 6.25, "coord_inicio": {"lat": -2.888778, "lng": -78.778145}, "coord_fin": {"lat": -2.864613, "lng": -78.778719}},
-            {"nombre": "GLCO-Gualaceo (E)/Bellavista Cuenca (A)-Sigsig (E)-F02-BB", "provincia": "AZUAY", "distancia": 25, "hilos_total": 48, "hilos_nodo": 22, "hilos_ocupados": 6, "hilos_recuperar": 20, "disponibilidad": 45.83, "coord_inicio": {"lat": -2.888778, "lng": -78.778145}, "coord_fin": {"lat": -3.000717, "lng": -78.829196}},
-            {"nombre": "GLCO-Gualaceo (E)/Chordeleg (E)-F01-BB", "provincia": "AZUAY", "distancia": 6, "hilos_total": 48, "hilos_nodo": 41, "hilos_ocupados": 7, "hilos_recuperar": 0, "disponibilidad": 85.42, "coord_inicio": {"lat": -2.888778, "lng": -78.778145}, "coord_fin": {"lat": -2.920383, "lng": -78.774679}},
-            {"nombre": "GLCO-Gualaceo (E)/Ñuñurco (NE)-F01-BB", "provincia": "AZUAY", "distancia": 50, "hilos_total": 48, "hilos_nodo": 48, "hilos_ocupados": 0, "hilos_recuperar": 0, "disponibilidad": 100.0, "coord_inicio": {"lat": -2.888778, "lng": -78.778145}, "coord_fin": {"lat": -2.760794, "lng": -78.677397}},
-            {"nombre": "GLCO-Gualaceo (E)-Limon Indanza (E)/San Juan Bosco (E)/F01-D01-DB", "provincia": "AZUAY", "distancia": 80, "hilos_total": 48, "hilos_nodo": 11, "hilos_ocupados": 0, "hilos_recuperar": 37, "disponibilidad": 22.92, "coord_inicio": {"lat": -2.888778, "lng": -78.778145}, "coord_fin": {"lat": -3.011413, "lng": -78.486741}},
-            {"nombre": "GLQ-Gualaquiza  (O)/Granadilla (O)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 55, "hilos_total": 24, "hilos_nodo": 0, "hilos_ocupados": 14, "hilos_recuperar": 10, "disponibilidad": 0.0, "coord_inicio": {"lat": -3.403667, "lng": -78.5795}, "coord_fin": {"lat": -3.209508, "lng": -78.75297}},
-            {"nombre": "GLQ-Gualaquiza (O)/San Juan Bosco (E)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 58, "hilos_total": 48, "hilos_nodo": 31, "hilos_ocupados": 5, "hilos_recuperar": 12, "disponibilidad": 64.58, "coord_inicio": {"lat": -3.403667, "lng": -78.5795}, "coord_fin": {"lat": -3.1202, "lng": -78.531256}},
-            {"nombre": "LIM-B-Limon Indanza (E)/Gualaquiza (O)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 100, "hilos_total": 48, "hilos_nodo": 24, "hilos_ocupados": 0, "hilos_recuperar": 24, "disponibilidad": 50.0, "coord_inicio": {"lat": -2.966844, "lng": -78.432994}, "coord_fin": {"lat": -3.403667, "lng": -78.5795}},
-            {"nombre": "MCS-Macas sdh (O)/Sucua (E)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 24, "hilos_total": 48, "hilos_nodo": 39, "hilos_ocupados": 6, "hilos_recuperar": 3, "disponibilidad": 81.25, "coord_inicio": {"lat": -2.312128, "lng": -78.122132}, "coord_fin": {"lat": -2.454722, "lng": -78.174167}},
-            {"nombre": "MCS-Santa Ana cue (E)/Macas sdh (O)-Chuwitayo (E)-F01-D01-DB", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 48, "hilos_nodo": 30, "hilos_ocupados": 9, "hilos_recuperar": 7, "disponibilidad": 65.22, "coord_inicio": {"lat": -2.298637, "lng": -78.102748}, "coord_fin": {"lat": -2.299458, "lng": -78.099963}},
-            {"nombre": "MCS-Taisha (E)-Macas sdh (O)/Chuwitayo(E)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 48, "hilos_nodo": 20, "hilos_ocupados": 12, "hilos_recuperar": 12, "disponibilidad": 45.45, "coord_inicio": {"lat": -2.107495, "lng": -78.025602}, "coord_fin": {"lat": -2.118487, "lng": -77.794347}},
-            {"nombre": "MCS-Santa Ana cue (E )/Chuwitayo (E)-Macas sdh (O)-F02-BB", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 48, "hilos_nodo": 22, "hilos_ocupados": 6, "hilos_recuperar": 14, "disponibilidad": 52.38, "coord_inicio": {"lat": -2.298637, "lng": -78.102748}, "coord_fin": {"lat": -2.299458, "lng": -78.099963}},
-            {"nombre": "MCS-Macas sdh (O)/Chuwitayo(E)-F01-Bb", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 48, "hilos_nodo": 16, "hilos_ocupados": 8, "hilos_recuperar": 34, "disponibilidad": 27.59, "coord_inicio": {"lat": -2.312128, "lng": -78.122132}, "coord_fin": {"lat": -1.908174, "lng": -77.816879}},
-            {"nombre": "MCS-Sucua (E)/Logroño  (NE)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 24, "hilos_total": 48, "hilos_nodo": 42, "hilos_ocupados": 6, "hilos_recuperar": 0, "disponibilidad": 87.5, "coord_inicio": {"lat": -2.454722, "lng": -78.174167}, "coord_fin": {"lat": -2.626537, "lng": -78.198827}},
-            {"nombre": "MCS-Logroño (E)/Santa Ana cue (E)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 46, "hilos_total": 0, "hilos_nodo": 20, "hilos_ocupados": 12, "hilos_recuperar": 12, "disponibilidad": 45.45, "coord_inicio": {"lat": -2.626537, "lng": -78.198827}, "coord_fin": {"lat": -2.299458, "lng": -78.099963}},
-            {"nombre": "MDZ-Tiwintza (E)/Mendez SDH (O)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 102, "hilos_total": 4, "hilos_nodo": 32, "hilos_ocupados": 4, "hilos_recuperar": 12, "disponibilidad": 66.67, "coord_inicio": {"lat": -3.052161, "lng": -78.005375}, "coord_fin": {"lat": -2.718751, "lng": -78.320473}},
-            {"nombre": "MDZ-Mendez SDH (O)/Limon Indanza (NE)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 51, "hilos_total": 48, "hilos_nodo": 34, "hilos_ocupados": 5, "hilos_recuperar": 9, "disponibilidad": 70.83, "coord_inicio": {"lat": -2.718751, "lng": -78.320473}, "coord_fin": {"lat": -2.966844, "lng": -78.432994}},
-            {"nombre": "MDZ-Mendez SDH (O)/Sucua (E)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 0, "hilos_nodo": 18, "hilos_ocupados": 4, "hilos_recuperar": 14, "disponibilidad": 50.0, "coord_inicio": {"lat": -2.718751, "lng": -78.320473}, "coord_fin": {"lat": -2.454722, "lng": -78.174167}},
-            {"nombre": "MDZ-Mendez SDH (O)/Pahuancay (O)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 0, "hilos_total": 0, "hilos_nodo": 21, "hilos_ocupados": 6, "hilos_recuperar": 17, "disponibilidad": 47.73, "coord_inicio": {"lat": -2.718751, "lng": -78.320473}, "coord_fin": {"lat": -2.636242, "lng": -78.600918}},
-            {"nombre": "SJB-San Juan Bosco (E)/Limon Indanza (NE)-F01-BB", "provincia": "MORONA SANTIAGO", "distancia": 39, "hilos_total": 48, "hilos_nodo": 44, "hilos_ocupados": 4, "hilos_recuperar": 0, "disponibilidad": 91.67, "coord_inicio": {"lat": -3.1202, "lng": -78.531256}, "coord_fin": {"lat": -2.966844, "lng": -78.432994}},
-            {"nombre": "NBN-Nabon (E)-Bellavista Cuenca (A)/Oña (O)/F01-D02-DB", "provincia": "AZUAY", "distancia": 20, "hilos_total": 48, "hilos_nodo": 14, "hilos_ocupados": 7, "hilos_recuperar": 27, "disponibilidad": 29.17, "coord_inicio": {"lat": -3.340539, "lng": -79.06593}, "coord_fin": {"lat": -3.254734, "lng": -79.068823}},
-            {"nombre": "NBON-Nabon (E)-Oña (O)/Bellavista Cuenca (A)-F01-D01-DB", "provincia": "AZUAY", "distancia": 16, "hilos_total": 48, "hilos_nodo": 10, "hilos_ocupados": 2, "hilos_recuperar": 36, "disponibilidad": 20.83, "coord_inicio": {"lat": -3.340539, "lng": -79.06593}, "coord_fin": {"lat": -3.303679, "lng": -79.116726}},
-            {"nombre": "PAU-Villaflor (NE)/Paute(O)-F01-BB", "provincia": "AZUAY", "distancia": 15, "hilos_total": 12, "hilos_nodo": 4, "hilos_ocupados": 2, "hilos_recuperar": 6, "disponibilidad": 33.33, "coord_inicio": {"lat": -2.829142, "lng": -78.802993}, "coord_fin": {"lat": -2.77797, "lng": -78.766982}},
-            {"nombre": "SIG-Sigsig (E)/Granadilla (O)-F01-BB", "provincia": "AZUAY", "distancia": 45, "hilos_total": 24, "hilos_nodo": 0, "hilos_ocupados": 13, "hilos_recuperar": 11, "disponibilidad": 0.0, "coord_inicio": {"lat": -3.050488, "lng": -78.793128}, "coord_fin": {"lat": -3.209508, "lng": -78.75297}},
-            {"nombre": "SISB-Giron(E)/Santa Isabel(O)-F01-BB", "provincia": "AZUAY", "distancia": 31, "hilos_total": 36, "hilos_nodo": 22, "hilos_ocupados": 9, "hilos_recuperar": 5, "disponibilidad": 61.11, "coord_inicio": {"lat": -3.160695, "lng": -79.145868}, "coord_fin": {"lat": -3.274622, "lng": -79.313995}},
-            {"nombre": "SISB-Santa Isabel (O)/ El Guabo (E)-F01-BB", "provincia": "AZUAY", "distancia": 63, "hilos_total": 48, "hilos_nodo": 15, "hilos_ocupados": 12, "hilos_recuperar": 21, "disponibilidad": 31.25, "coord_inicio": {"lat": -3.274622, "lng": -79.313995}, "coord_fin": {"lat": -3.319347, "lng": -79.713051}},
-            {"nombre": "SISB-Santa Isabel (O)/ Pucara Santa Isabel (E)-F01-BB", "provincia": "AZUAY", "distancia": 51, "hilos_total": 48, "hilos_nodo": 10, "hilos_ocupados": 3, "hilos_recuperar": 35, "disponibilidad": 20.83, "coord_inicio": {"lat": -3.274622, "lng": -79.313995}, "coord_fin": {"lat": -3.222194, "lng": -79.470811}},
-            {"nombre": "SISB-San Fernando (E)- Santa Isabel (O)/ El Guabo(O)-F02-D01-DB", "provincia": "AZUAY", "distancia": 24, "hilos_total": 48, "hilos_nodo": 43, "hilos_ocupados": 1, "hilos_recuperar": 4, "disponibilidad": 89.58, "coord_inicio": {"lat": -3.246809, "lng": -79.236203}, "coord_fin": {"lat": -3.274622, "lng": -79.313995}},
-            {"nombre": "SISB-Pucara (E)- Santa Isabel (O)/ El Guabo(O)-F02-D02-DB", "provincia": "AZUAY", "distancia": 60, "hilos_total": 48, "hilos_nodo": 48, "hilos_ocupados": 0, "hilos_recuperar": 0, "disponibilidad": 100.0, "coord_inicio": {"lat": -3.222194, "lng": -79.470811}, "coord_fin": {"lat": -3.310133, "lng": -79.509439}},
-        ];
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-left">
+          <div class="dot" style="background:var(--accent)"></div>
+          CATÁLOGO DE RUTAS
+        </div>
+        <span id="rutas-count" style="font-size:9px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">API: sheetdb.io · sheet=RUTAS</span>
+      </div>
+      <div class="tbl-footer" id="rutas-footer"></div>
+      <div class="tbl-wrap" style="height:500px;overflow-y:auto;">
+        <table class="rtbl" id="tbl-rutas">
+          <thead>
+            <tr>
+              <th data-col="RUTA">Ruta</th>
+              <th data-col="DISTANCIA" style="text-align:right;">Dist. (km)</th>
+              <th data-col="CUADRILLA">Cuadrilla</th>
+              <th data-col="ESTADO">Estado</th>
+              <th data-col="DISPONIBLES" style="text-align:right;">Disponibles</th>
+              <th data-col="PORCENTAJE" style="min-width:140px;">% Uso</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-rutas-body">
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Cargando rutas...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /grid-2 mapa+tabla -->
 
-        // Función para obtener color según disponibilidad
-        function getColor(disponibilidad) {
-            if (disponibilidad > 75) return '#2563eb';      // Azul
-            if (disponibilidad > 50) return '#16a34a';      // Verde
-            if (disponibilidad > 25) return '#eab308';      // Amarillo
-            return '#dc2626';                                // Rojo
+  <div class="grid-1" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-left">
+          <div class="dot" style="background:var(--green)"></div>
+          DETALLE DE REGISTROS
+        </div>
+        
+      </div>
+      <div class="dtbl-header">
+        <span class="dtbl-info" id="dtbl-info">Cargando registros...</span>
+        <input class="dtbl-search" id="dtbl-search" type="text" placeholder="🔍  Buscar tarea, cuadrilla, empresa..."/>
+      </div>
+      <div class="dtbl-wrap">
+        <table class="dtbl" id="dtbl">
+          <thead>
+            <tr>
+              <th data-dcol="cua">CUADRILLA</th>
+              <th data-dcol="fecha">FECHA</th>
+              <th data-dcol="num">Nº TAREA / CASO</th>
+              <th data-dcol="nombre" style="min-width:260px;">TAREA</th>
+              <th data-dcol="tipo">TIPO</th>
+              <th data-dcol="area">ÁREA</th>
+              <th data-dcol="empresa">EMPRESA</th>
+              <th data-dcol="dur" style="text-align:right;">DURACIÓN (H)</th>
+            </tr>
+          </thead>
+          <tbody id="dtbl-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;">Cargando datos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+</main>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   API SheetDB — datos en tiempo real
+   Endpoint: https://sheetdb.io/api/v1/9vr1wejd6lknd
+   Hojas: Tareas (sheet=Tareas) | TTG (sheet=TTG)
+   Estructura Tareas: CUADRILLA, MES, TIPO, AREA, EMPRESA, NOMBRE DE TAREA
+   Estructura TTG:    CUADRILLA, MES, VALOR
+══════════════════════════════════════════════════════════════ */
+const API = 'https://sheetdb.io/api/v1/9vr1wejd6lknd';
+
+/* Arrays globales — se llenan desde la API */
+let ROWS     = [];
+let TTG_ROWS = [];
+let ALL_CUAS = [];
+
+/* ── helpers de normalización ── */
+function shortCua(c){
+  return (c||'').replace('CUE PROV ','').replace(' INT ','-INT ');
+}
+function parseValor(v){
+  if(v===null||v===undefined||v==='') return null;
+  return parseFloat(String(v).replace(',','.'));
+}
+
+/* ── fetch con modo cors: 'cors' y fallback a no-cors via proxy ── */
+async function fetchSheet(sheetName, maxPages=20){
+  const limit  = 500;
+  let offset   = 0;
+  let all      = [];
+
+  // Intentar con fetch directo primero (funciona desde servidor)
+  // Si falla por CORS usar proxy público
+  async function tryFetch(url){
+    // Intento 1: directo
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors'
+      });
+      if(res.ok){
+        const j = await res.json();
+        if(Array.isArray(j)) return j;
+        if(j && j.error) throw new Error(j.error);
+        return [];
+      }
+    } catch(e1) {
+      // Intento 2: vía proxy CORS abierto
+      try {
+        const proxy = 'https://corsproxy.io/?' + encodeURIComponent(url);
+        const res2  = await fetch(proxy);
+        if(res2.ok){
+          const j2 = await res2.json();
+          if(Array.isArray(j2)) return j2;
         }
+      } catch(e2) {
+        console.warn('Proxy también falló:', e2.message);
+      }
+    }
+    return [];
+  }
 
-        // Cargar tarjetas de rutas críticas
-        function cargarRutasCriticas() {
-            const rutasCriticas = todasLasRutas.filter(r => r.disponibilidad < 20).sort((a, b) => a.disponibilidad - b.disponibilidad);
-            const grid = document.getElementById('rutasGrid');
-            
-            rutasCriticas.forEach(ruta => {
-                const card = document.createElement('div');
-                card.className = 'ruta-card';
-                card.innerHTML = `
-                    <div class="ruta-card-header">
-                        <div class="ruta-nombre">${ruta.disponibilidad === 0 ? '🚨' : '⚠️'} ${ruta.nombre}</div>
-                        <div class="ruta-provincia">${ruta.provincia}</div>
-                        <div class="disponibilidad-badge">${ruta.disponibilidad.toFixed(2)}%</div>
-                    </div>
-                    <div class="ruta-card-body">
-                        <div class="ruta-detail">
-                            <div class="ruta-detail-label">Hilos Ocupados</div>
-                            <div class="ruta-detail-value">${ruta.hilos_ocupados}</div>
-                        </div>
-                        <div class="ruta-detail">
-                            <div class="ruta-detail-label">Hilos Nodo-Nodo</div>
-                            <div class="ruta-detail-value">${ruta.hilos_nodo} <span>/${ruta.hilos_total}</span></div>
-                        </div>
-                        <div class="ruta-detail">
-                            <div class="ruta-detail-label">Hilos por Recuperar</div>
-                            <div class="ruta-detail-value">${ruta.hilos_recuperar}</div>
-                        </div>
-                    </div>
-                    <div class="hover-hint">👆 Pasa el cursor para ver detalles</div>
-                `;
-                grid.appendChild(card);
-            });
+  for(let page=0; page<maxPages; page++){
+    const url = `${API}?sheet=${encodeURIComponent(sheetName)}&limit=${limit}&offset=${offset}`;
+    const batch = await tryFetch(url);
+    if(!batch.length) break;
+    all = all.concat(batch);
+    if(batch.length < limit) break;
+    offset += limit;
+  }
+  console.log(`✓ Hoja "${sheetName}": ${all.length} filas`);
+  return all;
+}
+
+
+/* helper para loadRutas/loadCortes/loadDetalle */
+async function fetchSheet_simple(url){
+  try {
+    const res = await fetch(url, {mode:'cors', headers:{Accept:'application/json'}});
+    if(res.ok){ const j=await res.json(); if(Array.isArray(j)) return j; }
+  } catch(e) {
+    try {
+      const proxy='https://corsproxy.io/?'+encodeURIComponent(url);
+      const res2=await fetch(proxy);
+      if(res2.ok){ const j2=await res2.json(); if(Array.isArray(j2)) return j2; }
+    } catch(e2){}
+  }
+  return [];
+}
+/* ── carga y parseo desde API ── */
+async function loadData(){
+  showLoader(true);
+  try {
+    const [resTareas, resTTG] = await Promise.all([
+      fetchSheet('Tareas'),
+      fetchSheet('TTG')
+    ]);
+
+    console.log('Tareas cargadas:', resTareas.length, '| TTG cargados:', resTTG.length);
+    if(resTareas.length===0) throw new Error('La hoja Tareas no devolvió datos. Verifica la API.');
+
+    // Detectar nombres de columnas reales (insensible a mayúsculas/espacios)
+    function col(row, ...candidates){
+      const keys = Object.keys(row);
+      for(const c of candidates){
+        const found = keys.find(k=>k.trim().toUpperCase()===c.toUpperCase());
+        if(found) return (row[found]||'').toString().trim();
+      }
+      return '';
+    }
+
+    /* ── Parsear Tareas ── */
+    ROWS = resTareas
+      .filter(r => col(r,'CUADRILLA'))
+      .map(r => [
+        shortCua(col(r,'CUADRILLA')),                            // 0
+        parseInt(col(r,'MES')) || 0,                             // 1
+        col(r,'TIPO').toUpperCase(),                             // 2
+        col(r,'AREA','ÁREA').toUpperCase(),                      // 3
+        col(r,'EMPRESA').toUpperCase(),                          // 4
+        col(r,'NOMBRE DE TAREA','NOMBRE','TAREA')                // 5
+      ])
+      .filter(r => r[1] > 0);
+
+    /* ── Parsear TTG ── */
+    TTG_ROWS = resTTG
+      .filter(r => col(r,'CUADRILLA') && col(r,'VALOR'))
+      .map(r => [
+        shortCua(col(r,'CUADRILLA')),                            // 0
+        parseInt(col(r,'MES')) || 0,                             // 1
+        parseValor(col(r,'VALOR'))                               // 2
+      ])
+      .filter(r => r[1]>0 && r[2]!==null && !isNaN(r[2]));
+
+    /* ── Listas dinámicas ── */
+    ALL_CUAS = [...new Set(ROWS.map(r=>r[0]))].filter(c=>c).sort();
+
+    // Detectar empresas reales
+    const empsReales = [...new Set(ROWS.map(r=>r[4]))].filter(e=>e);
+    if(empsReales.length) ALL_EMPS.length=0, empsReales.forEach(e=>ALL_EMPS.push(e));
+
+    updateSidebarCounts();
+    // Pequeño delay para asegurar que el DOM esté completamente pintado antes de crear los charts
+    setTimeout(()=>{ render(); }, 50);
+
+  } catch(err) {
+    console.error('Error cargando datos:', err);
+    showError('No se pudo conectar con la API.<br><small>'+err.message+'</small>');
+  } finally {
+    showLoader(false);
+  }
+}
+
+function updateSidebarCounts(){
+  const total = ROWS.length;
+  // Actualizar badge total
+  document.getElementById('nav-badge').textContent = total.toLocaleString() + ' registros';
+
+  // Recalcular conteos por mes
+  const mesCnt = {};
+  ROWS.forEach(r=>{ mesCnt[r[1]] = (mesCnt[r[1]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="mes"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && mesCnt[parseInt(v)]) cnt.textContent = mesCnt[parseInt(v)].toLocaleString();
+  });
+
+  // Recalcular conteos por cuadrilla
+  const cuaCnt = {};
+  ROWS.forEach(r=>{ cuaCnt[r[0]] = (cuaCnt[r[0]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="cua"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const short = shortCua(v);
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && cuaCnt[short]) cnt.textContent = cuaCnt[short].toLocaleString();
+  });
+
+  // Recalcular conteos por empresa
+  const empCnt = {};
+  ROWS.forEach(r=>{ empCnt[r[4]] = (empCnt[r[4]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="emp"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && empCnt[v]) cnt.textContent = empCnt[v].toLocaleString();
+  });
+
+  // Recalcular conteos por área
+  const areaCnt = {};
+  ROWS.forEach(r=>{ areaCnt[r[3]] = (areaCnt[r[3]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="area"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && areaCnt[v]) cnt.textContent = areaCnt[v].toLocaleString();
+  });
+
+  // Recalcular conteos por tipo
+  const tipoCnt = {};
+  ROWS.forEach(r=>{ tipoCnt[r[2]] = (tipoCnt[r[2]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="tipo"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && tipoCnt[v]) cnt.textContent = tipoCnt[v].toLocaleString();
+  });
+
+  // Nombre de tarea
+  const nomCnt = {};
+  ROWS.forEach(r=>{ nomCnt[r[5]] = (nomCnt[r[5]]||0)+1; });
+  document.querySelectorAll('.fo[data-key="nombre"][data-val]').forEach(el=>{
+    const v = el.dataset.val;
+    if(v==='all') return;
+    const cnt = el.querySelector('.fo-cnt');
+    if(cnt && nomCnt[v]) cnt.textContent = nomCnt[v].toLocaleString();
+  });
+}
+
+/* ── Loader / Error UI ── */
+function showLoader(show){
+  let el = document.getElementById('loader-overlay');
+  if(show){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'loader-overlay';
+      el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(240,242,245,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;';
+      el.innerHTML = `
+        <div style="width:42px;height:42px;border:4px solid #e0e4ed;border-top-color:#1a3a7a;border-radius:50%;animation:spin .8s linear infinite;"></div>
+        <div style="font-size:13px;color:#1a3a7a;font-weight:700;font-family:Segoe UI,system-ui,sans-serif;">Cargando datos desde la API...</div>
+        <div style="font-size:11px;color:#6b7a99;font-family:Segoe UI,system-ui,sans-serif;">sheetdb.io · Interurbanas 2026</div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+      document.body.appendChild(el);
+    }
+    el.style.display='flex';
+  } else {
+    if(el) el.style.display='none';
+  }
+}
+
+function showError(msg){
+  let el = document.getElementById('loader-overlay');
+  if(!el){ showLoader(true); el = document.getElementById('loader-overlay'); }
+  el.innerHTML = `
+    <div style="font-size:32px;">⚠️</div>
+    <div style="font-size:14px;color:#e53935;font-weight:700;font-family:Segoe UI,system-ui,sans-serif;">Error de conexión</div>
+    <div style="font-size:12px;color:#6b7a99;text-align:center;max-width:320px;font-family:Segoe UI,system-ui,sans-serif;">${msg}</div>
+    <button onclick="loadData()" style="margin-top:8px;padding:8px 20px;background:#1a3a7a;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;">↻ Reintentar</button>`;
+  el.style.display='flex';
+}
+
+const ALL_MESES=[1,2,3,4,5,6];
+const ALL_EMPS=['TELCONET','MEGADATOS','ECUANET'];
+const LABEL={anio:'Año',mes:'Mes',cua:'Cuadrilla',area:'Área',tipo:'Tipo',emp:'Empresa',nombre:'Tarea'};
+
+
+/* ══ FILTROS ═══════════════════════════════════════════════ */
+const F={anio:'all',mes:'all',cua:'all',area:'all',tipo:'all',emp:'all',nombre:'all'};
+
+function filterRows(){
+  const cuaF  = F.cua!=='all'  ? shortCua(F.cua) : null;
+  const mesF  = F.mes!=='all'  ? parseInt(F.mes)  : null;
+  const tipoF = F.tipo!=='all' ? F.tipo.toUpperCase()  : null;
+  const areaF = F.area!=='all' ? F.area.toUpperCase()  : null;
+  const empF  = F.emp!=='all'  ? F.emp.toUpperCase()   : null;
+  const nomF  = F.nombre!=='all'? F.nombre: null;
+  return ROWS.filter(r=>{
+    if(cuaF  && r[0]!==cuaF)  return false;
+    if(mesF  && r[1]!==mesF)  return false;
+    if(tipoF && r[2]!==tipoF) return false;
+    if(areaF && r[3]!==areaF) return false;
+    if(empF  && r[4]!==empF)  return false;
+    if(nomF  && r[5]!==nomF)  return false;
+    return true;
+  });
+}
+
+function filterTTG(){
+  const cuaF = F.cua!=='all' ? shortCua(F.cua) : null;
+  const mesF = F.mes!=='all' ? parseInt(F.mes) : null;
+  return TTG_ROWS.filter(r=>{
+    if(cuaF && r[0]!==cuaF) return false;
+    if(mesF && r[1]!==mesF) return false;
+    return true;
+  });
+}
+
+function countBy(rows,idx){
+  const m={};
+  rows.forEach(r=>{const k=r[idx];if(k)m[k]=(m[k]||0)+1;});
+  return m;
+}
+
+/* ══ CHART.JS ═══════════════════════════════════════════════ */
+Chart.defaults.color='#6b7a99';
+Chart.defaults.borderColor='#e0e4ed';
+Chart.defaults.font.family="'Segoe UI',system-ui,sans-serif";
+Chart.defaults.font.size=11;
+
+const AC='#1a3a7a',GR='#00897b',YL='#f5a623',RD='#e53935',PU='#6a1b9a',OR='#f57c00';
+const PAL=['#1a3a7a','#f57c00','#00897b','#e53935','#6a1b9a','#0288d1','#558b2f','#ad1457','#ff8f00','#00695c'];
+const TTG_PAL=['#1a3a7a','#f57c00','#00897b','#e53935','#6a1b9a','#0288d1','#558b2f','#ad1457','#ff8f00','#00695c','#37474f','#6d4c41'];
+
+/* Registrar datalabels solo para charts de barras — no para donut ni línea */
+/* Se aplica manualmente por chart, NO globalmente para evitar que afecte donut/línea */
+
+/* constantes de color */
+
+let CH={};
+function mkChart(id,type,data,opts){
+  try{
+    if(CH[id]){ CH[id].destroy(); delete CH[id]; }
+    const el=document.getElementById(id);
+    if(!el) return;
+    const o = opts || {};
+    o.responsive = true;
+    o.maintainAspectRatio = false;
+    if(!o.plugins) o.plugins = {};
+    if(!o.plugins.tooltip) o.plugins.tooltip = {
+      backgroundColor:'#1a2340',borderColor:'#e0e4ed',borderWidth:1,
+      padding:10,titleColor:'#ffffff',bodyColor:'#e0e4ed'
+    };
+    // Datalabels: off por defecto, solo se activa si ya está en o.plugins.datalabels
+    if(!o.plugins.datalabels) o.plugins.datalabels = {display:false};
+    // Registrar datalabels si está disponible
+    const plugins = window.ChartDataLabels ? [window.ChartDataLabels] : [];
+    CH[id] = new Chart(el, {type, data, options: o, plugins});
+  } catch(e){ console.error('Chart error ['+id+']:', e.message); }
+}
+
+/* Plugin barLabels eliminado — se usan etiquetas nativas */
+
+/* ══ RENDER ════════════════════════════════════════════════ */
+function render(){
+  const rows=filterRows();
+  const total=rows.length;
+
+  /* KPIs */
+  const cuasSet=new Set(rows.map(r=>r[0]));
+  document.getElementById('nav-badge').textContent=total.toLocaleString()+' registros';
+  document.getElementById('k-cua').textContent=cuasSet.size;
+  document.getElementById('k-total').textContent=total.toLocaleString();
+  const diasActivos=new Set(rows.map(r=>r[1])).size*22;
+  document.getElementById('k-daily').textContent=diasActivos>0?(total/diasActivos).toFixed(1):'—';
+
+  /* KPI: Mayor TTG del mes (desde TTG_ROWS filtrado por mes y cuadrilla) */
+  const ttgKpiRows = TTG_ROWS.filter(r=>{
+    if(F.cua!=='all' && r[0]!==shortCua(F.cua)) return false;
+    if(F.mes!=='all' && r[1]!==parseInt(F.mes)) return false;
+    return true;
+  });
+  if(ttgKpiRows.length){
+    // Promedio por cuadrilla dentro del filtro
+    const ttgSum={}, ttgCnt={};
+    ttgKpiRows.forEach(r=>{ ttgSum[r[0]]=(ttgSum[r[0]]||0)+r[2]; ttgCnt[r[0]]=(ttgCnt[r[0]]||0)+1; });
+    const maxCua = Object.keys(ttgSum).sort((a,b)=>(ttgSum[b]/ttgCnt[b])-(ttgSum[a]/ttgCnt[a]))[0];
+    const maxVal = (ttgSum[maxCua]/ttgCnt[maxCua]).toFixed(2);
+    document.getElementById('k-ttg-max').textContent = maxCua;
+    document.getElementById('k-ttg-max-sub').textContent = `TTG: ${maxVal}`;
+  } else {
+    document.getElementById('k-ttg-max').textContent = '—';
+    document.getElementById('k-ttg-max-sub').textContent = 'sin datos TTG';
+  }
+
+  /* KPI: Duración promedio (desde tabla de detalle filtrada) */
+  if(RAW_TAREAS.length){
+    const cuaF2  = F.cua  !=='all' ? F.cua.replace('CUE PROV ','').toUpperCase() : null;
+    const mesF2  = F.mes  !=='all' ? parseInt(F.mes) : null;
+    const tipoF2 = F.tipo !=='all' ? F.tipo.toUpperCase() : null;
+    const areaF2 = F.area !=='all' ? F.area.toUpperCase() : null;
+    const empF2  = F.emp  !=='all' ? F.emp.toUpperCase()  : null;
+    const durRows = RAW_TAREAS.filter(row=>{
+      const cua  = (colVal(row,'CUADRILLA')||'').replace('CUE PROV ','').toUpperCase();
+      const mes  = parseInt(colVal(row,'MES'))||0;
+      const tipo = (colVal(row,'TIPO')||'').toUpperCase();
+      const area = (colVal(row,'AREA','ÁREA')||'').toUpperCase();
+      const emp  = (colVal(row,'EMPRESA')||'').toUpperCase();
+      if(cuaF2  && cua !==cuaF2)  return false;
+      if(mesF2  && mes !==mesF2)  return false;
+      if(tipoF2 && tipo!==tipoF2) return false;
+      if(areaF2 && area!==areaF2) return false;
+      if(empF2  && emp !==empF2)  return false;
+      return true;
+    });
+    const durs = durRows.map(r=>parseDuracion(colVal(r,'DURACIÓN','DURACION'))).filter(d=>d>0);
+    const avgDur = durs.length ? (durs.reduce((a,b)=>a+b,0)/durs.length).toFixed(2) : '—';
+    document.getElementById('k-dur-avg').textContent = avgDur==='—'?'—':avgDur+'h';
+  }
+
+  /* ── 1. TAREAS POR CUADRILLA — barras apiladas TAREA+CASO, orden mayor→menor */
+  const cuaTarea={},cuaCaso={};
+  rows.forEach(r=>{
+    const c=r[0];
+    if(r[2]==='TAREA') cuaTarea[c]=(cuaTarea[c]||0)+1;
+    else               cuaCaso[c] =(cuaCaso[c] ||0)+1;
+  });
+  const cuaLabels=ALL_CUAS
+    .filter(c=>(cuaTarea[c]||0)+(cuaCaso[c]||0)>0)
+    .sort((a,b)=>((cuaTarea[b]||0)+(cuaCaso[b]||0))-((cuaTarea[a]||0)+(cuaCaso[a]||0)));
+  mkChart('ch-cua','bar',{
+    labels:cuaLabels,
+    datasets:[
+      {label:'TAREA',data:cuaLabels.map(c=>cuaTarea[c]||0),backgroundColor:AC,borderRadius:3,stack:'s'},
+      {label:'CASO', data:cuaLabels.map(c=>cuaCaso[c] ||0),backgroundColor:PU,borderRadius:3,stack:'s'}
+    ]
+  },{
+    plugins:{
+      legend:{display:true,position:'top',align:'end',labels:{boxWidth:10,padding:14,color:'#6b7a99',font:{size:10}}},
+      tooltip:{backgroundColor:'#1a2340',borderColor:'#e0e4ed',borderWidth:1,padding:10,titleColor:'#ffffff',bodyColor:'#e0e4ed',callbacks:{afterBody:items=>{
+        const c=cuaLabels[items[0].dataIndex];
+        return['Total: '+((cuaTarea[c]||0)+(cuaCaso[c]||0))];
+      }}},
+      datalabels:{
+        color:'#fff', font:{weight:'bold',size:9},
+        formatter:v=>v>0?Math.round(v):'',
+        anchor:'center', align:'center',
+        display: ctx => ctx.dataset.data[ctx.dataIndex] > 20
+      }
+    },
+    scales:{
+      x:{grid:{display:false},ticks:{color:'#6b7a99',font:{size:9},maxRotation:45}},
+      y:{grid:{color:'rgba(0,0,0,.06)'},ticks:{color:'#6b7a99'},grace:'15%'}
+    }
+  });
+
+  /* ── 2. DISTRIBUCIÓN POR ÁREA — donut */
+  const areaCount=countBy(rows,3);
+  const areaKeys=Object.keys(areaCount).filter(k=>k);
+  const areaCols=[AC,OR,GR,RD,YL,PU,'#38c6f4'];
+  if(areaKeys.length){
+    mkChart('ch-area','doughnut',{
+      labels:areaKeys,
+      datasets:[{data:areaKeys.map(k=>areaCount[k]),backgroundColor:areaCols,borderColor:'#f0f2f5',borderWidth:2,hoverOffset:8}]
+    },{cutout:'62%',plugins:{legend:{display:true,position:'right',labels:{boxWidth:10,padding:10,color:'#6b7a99',font:{size:10}}}}});
+  }
+
+  /* ── 3. TAREAS POR EMPRESA — barras agrupadas por cuadrilla, una serie por empresa,
+          eje X = cuadrillas, colores por empresa, ordenado mayor→menor por total     */
+  const empCols = ['#1a3a7a','#f57c00','#e53935','#00897b','#6a1b9a','#0288d1'];
+
+  // Detectar empresas presentes en los datos filtrados
+  const empsEnDatos = [...new Set(rows.map(r=>r[4]).filter(e=>e))].sort();
+  const empsVis     = F.emp!=='all' ? [F.emp.toUpperCase()] : empsEnDatos;
+
+  // Contar tareas por empresa × cuadrilla
+  const empCuaCnt = {};
+  rows.forEach(r=>{
+    const emp=r[4], cua=r[0];
+    if(!emp||!cua) return;
+    if(!empCuaCnt[emp]) empCuaCnt[emp]={};
+    empCuaCnt[emp][cua] = (empCuaCnt[emp][cua]||0)+1;
+  });
+
+  // Cuadrillas con datos, ordenadas de mayor a menor total
+  const cuasEmp = ALL_CUAS
+    .filter(c => empsVis.some(e=>(empCuaCnt[e]||{})[c]>0))
+    .sort((a,b)=>{
+      const tA = empsVis.reduce((s,e)=>s+((empCuaCnt[e]||{})[a]||0),0);
+      const tB = empsVis.reduce((s,e)=>s+((empCuaCnt[e]||{})[b]||0),0);
+      return tB-tA;
+    });
+
+  if(cuasEmp.length){
+    mkChart('ch-emp','bar',{
+      labels: cuasEmp,
+      datasets: empsVis.map((emp,i)=>({
+        label: emp,
+        data:  cuasEmp.map(c=>(empCuaCnt[emp]||{})[c]||0),
+        backgroundColor: empCols[i % empCols.length],
+        borderRadius: 4,
+        borderSkipped: false
+      }))
+    },{
+      plugins:{
+        legend:{display:true,position:'top',align:'end',
+          labels:{boxWidth:11,padding:16,color:'#6b7a99',font:{size:11}}},
+        tooltip:{backgroundColor:'#1a2340',borderColor:'#e0e4ed',borderWidth:1,
+          padding:10,titleColor:'#fff',bodyColor:'#e0e4ed'}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#6b7a99',font:{size:10},maxRotation:40}},
+        y:{grid:{color:'rgba(0,0,0,.06)'},ticks:{color:'#6b7a99'},grace:'15%'}
+      }
+    });
+  }
+
+  /* ── 4. TAREAS MÁS FRECUENTES — barras horizontales top 8 */
+  const nomCnt={};
+  rows.forEach(r=>{ const n=r[5]; if(n&&n!=='OTROS') nomCnt[n]=(nomCnt[n]||0)+1; });
+  const topFreq=Object.entries(nomCnt).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(topFreq.length){
+    const topPAL=['#1a3a7a','#f57c00','#00897b','#e53935','#6a1b9a','#0288d1','#558b2f','#ad1457'];
+    mkChart('ch-top','bar',{
+      labels: topFreq.map(([k])=>k.length>32?k.slice(0,32)+'…':k),
+      datasets:[{
+        data: topFreq.map(([,v])=>v),
+        backgroundColor: topPAL,
+        borderRadius:4, borderSkipped:false
+      }]
+    },{
+      indexAxis:'y',
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1a2340',borderColor:'#e0e4ed',borderWidth:1,
+          padding:10,titleColor:'#fff',bodyColor:'#e0e4ed'},
+        datalabels:{
+          color:'#1a2340',font:{weight:'bold',size:10},
+          formatter:v=>v>0?Math.round(v).toLocaleString():'',
+          anchor:'end',align:'right',
+          display: ctx => ctx.dataset.data[ctx.dataIndex] > 0
         }
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,.06)'},ticks:{color:'#6b7a99'},grace:'14%'},
+        y:{grid:{display:false},ticks:{color:'#6b7a99',font:{size:10}}}
+      }
+    });
+  }
 
-        // Inicializar mapa con TODAS las rutas
-        function initMap() {
-            const map = L.map('map').setView([-2.9, -78.6], 8);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 19
-            }).addTo(map);
+  /* ── 5. TTG MENSUAL POR CUADRILLAS ── */
+  if(TTG_ROWS.length > 0){
+    // Filtrar TTG según filtros activos de cuadrilla y mes
+    const cuaF = F.cua!=='all' ? shortCua(F.cua) : null;
+    const mesF = F.mes!=='all' ? parseInt(F.mes)  : null;
+    const ttgFilt = TTG_ROWS.filter(r=>{
+      if(cuaF && r[0]!==cuaF) return false;
+      if(mesF && r[1]!==mesF) return false;
+      return true;
+    });
 
-            // Dibujar todas las rutas
-            todasLasRutas.forEach(ruta => {
-                if (ruta.coord_inicio && ruta.coord_fin) {
-                    const latlngs = [
-                        [ruta.coord_inicio.lat, ruta.coord_inicio.lng],
-                        [ruta.coord_fin.lat, ruta.coord_fin.lng]
-                    ];
-                    
-                    const color = getColor(ruta.disponibilidad);
-                    
-                    const polyline = L.polyline(latlngs, {
-                        color: color,
-                        weight: 3,
-                        opacity: 0.8,
-                        dashArray: ruta.disponibilidad < 25 ? '5, 5' : null
-                    }).bindPopup(`
-                        <strong>${ruta.nombre}</strong><br/>
-                        Provincia: ${ruta.provincia}<br/>
-                        Disponibilidad: <strong>${ruta.disponibilidad.toFixed(2)}%</strong><br/>
-                        Hilos: ${ruta.hilos_nodo}/${ruta.hilos_total}<br/>
-                        Distancia: ${ruta.distancia} km
-                    `).addTo(map);
-                }
-            });
-        }
+    // Acumular suma y conteo por cuadrilla
+    const ttgSum={}, ttgCnt={};
+    ttgFilt.forEach(r=>{
+      ttgSum[r[0]] = (ttgSum[r[0]]||0) + r[2];
+      ttgCnt[r[0]] = (ttgCnt[r[0]]||0) + 1;
+    });
 
-        // Inicializar cuando carga la página
-        document.addEventListener('DOMContentLoaded', () => {
-            cargarRutasCriticas();
-            setTimeout(initMap, 100);
+    // Cuadrillas con datos, ordenadas mayor → menor TTG promedio
+    const ttgCuas = Object.keys(ttgCnt)
+      .sort((a,b)=>(ttgSum[b]/ttgCnt[b]) - (ttgSum[a]/ttgCnt[a]));
+
+    const ttgVals = ttgCuas.map(c => +(ttgSum[c]/ttgCnt[c]).toFixed(2));
+
+    // Promedio global para la línea de referencia
+    const globalTTG = ttgFilt.length
+      ? +(ttgFilt.reduce((s,r)=>s+r[2],0) / ttgFilt.length).toFixed(2)
+      : 0;
+
+    const TTG_PAL=['#1a3a7a','#f57c00','#00897b','#e53935','#6a1b9a',
+                   '#0288d1','#558b2f','#ad1457','#ff8f00','#00695c','#37474f','#6d4c41'];
+
+    // Plugin inline: línea horizontal roja punteada con etiqueta
+    const avgLinePlugin = {
+      id: 'ttgAvgLine',
+      afterDraw(chart){
+        if(!globalTTG) return;
+        const {ctx, chartArea:{left,right}, scales:{y}} = chart;
+        if(!y) return;
+        const yPos = y.getPixelForValue(globalTTG);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(left, yPos);
+        ctx.lineTo(right, yPos);
+        ctx.strokeStyle = '#e53935';
+        ctx.lineWidth   = 2;
+        ctx.setLineDash([7,4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#e53935';
+        ctx.font = 'bold 10px Segoe UI,system-ui,sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('Prom: ' + globalTTG, right - 4, yPos - 3);
+        ctx.restore();
+      }
+    };
+
+    if(ttgCuas.length){
+      // Destruir instancia anterior si existe
+      if(CH['ch-ttg']){ try{ CH['ch-ttg'].destroy(); }catch(e){} delete CH['ch-ttg']; }
+      const el = document.getElementById('ch-ttg');
+      if(el){
+        CH['ch-ttg'] = new Chart(el, {
+          type: 'bar',
+          data: {
+            labels: ttgCuas,
+            datasets:[{
+              label: 'TTG Promedio',
+              data:  ttgVals,
+              backgroundColor: ttgCuas.map((_,i)=>TTG_PAL[i%TTG_PAL.length]),
+              borderRadius: 4,
+              borderSkipped: false
+            }]
+          },
+          options:{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins:{
+              legend:{ display: false },
+              tooltip:{
+                backgroundColor:'#1a2340', borderColor:'#e0e4ed', borderWidth:1,
+                padding:10, titleColor:'#fff', bodyColor:'#e0e4ed',
+                callbacks:{ label: ctx => ` TTG: ${ctx.parsed.y.toFixed(2)}` }
+              }
+            },
+            scales:{
+              x:{ grid:{display:false}, ticks:{color:'#6b7a99',font:{size:9},maxRotation:40} },
+              y:{
+                min: 0, max: 6,
+                grid:{ color:'rgba(0,0,0,.06)' },
+                ticks:{ color:'#6b7a99', callback: v => v.toFixed(1) },
+                title:{ display:true, text:'TTG (promedio)', color:'#6b7a99', font:{size:10} }
+              }
+            }
+          },
+          plugins:[ avgLinePlugin ]   // plugin inline exclusivo de este chart
         });
-    </script>
+      }
+    }
+  }
+
+}
+function toggleFG(key){
+  const body=document.getElementById('body-'+key);
+  const arr=document.getElementById('arr-'+key);
+  const open=body.classList.toggle('open');
+  arr.classList.toggle('open',open);
+}
+
+/* ══ SELECCIÓN DE OPCIONES → actualización inmediata ═══════ */
+document.querySelectorAll('.fo').forEach(opt=>{
+  opt.addEventListener('click',()=>{
+    const key=opt.dataset.key,val=opt.dataset.val;
+    document.querySelectorAll(`.fo[data-key="${key}"]`).forEach(o=>{
+      o.classList.remove('sel');
+      o.querySelector('.fo-chk').textContent='';
+    });
+    opt.classList.add('sel');
+    opt.querySelector('.fo-chk').textContent='✓';
+    F[key]=val;
+    updateStatus();
+    renderChips();
+    render();
+    renderMapa(F);
+    renderTablaRutas(F);
+    renderDetalle(F);
+  });
+});
+
+/* ══ CHIPS ═════════════════════════════════════════════════ */
+function renderChips(){
+  const el=document.getElementById('chips-area');
+  el.innerHTML='';
+  Object.entries(F).forEach(([key,val])=>{
+    if(val==='all') return;
+    const opt=document.querySelector(`.fo[data-key="${key}"][data-val="${val}"]`);
+    const txt=opt?opt.querySelector('.fo-lbl').textContent.trim():val;
+    const chip=document.createElement('div');
+    chip.className='chip';
+    chip.innerHTML=`<div class="chip-info"><span class="chip-key">${LABEL[key]||key}</span><span class="chip-val">${txt}</span></div><span class="chip-x">×</span>`;
+    chip.querySelector('.chip-x').addEventListener('click',e=>{
+      e.stopPropagation();
+      resetFilter(key);
+      updateStatus();
+      renderChips();
+      render();
+      renderMapa(F);
+      renderTablaRutas(F);
+      renderDetalle(F);
+    });
+    el.appendChild(chip);
+  });
+}
+
+function resetFilter(key){
+  F[key]='all';
+  document.querySelectorAll(`.fo[data-key="${key}"]`).forEach(o=>{o.classList.remove('sel');o.querySelector('.fo-chk').textContent='';});
+  const allOpt=document.querySelector(`.fo[data-key="${key}"][data-val="all"]`);
+  if(allOpt){allOpt.classList.add('sel');allOpt.querySelector('.fo-chk').textContent='✓';}
+}
+
+function updateStatus(){
+  const n=Object.values(F).filter(v=>v!=='all').length;
+  document.getElementById('filter-status').textContent=n?`${n} filtro${n>1?'s':''} activo${n>1?'s':''}`:'Sin filtros activos';
+}
+
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  Object.keys(F).forEach(k=>{resetFilter(k);});
+  updateStatus();renderChips();render();renderMapa(F);renderTablaRutas(F);renderDetalle(F);
+});
+
+/* ══ RELOJ ══════════════════════════════════════════════════ */
+function clock(){
+  const n=new Date();
+  document.getElementById('nav-clock').textContent=
+    n.toLocaleDateString('es-EC',{day:'2-digit',month:'short',year:'numeric'})+
+    ' '+n.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+}
+clock();setInterval(clock,60000);
+
+
+/* ══ MAPA DE RUTAS ═══════════════════════════════════════════════════
+   Datos en memoria → renderMapa(F) reconstruye capas sin nueva petición
+══════════════════════════════════════════════════════════════════════ */
+let RUTAS_DATA  = [];   // filas de la hoja RUTAS
+let CORTES_DATA = [];   // filas de la hoja Cortes
+let leafletMap  = null;
+let layerRutas  = null; // L.LayerGroup de líneas y nodos
+let layerCortes = null; // L.LayerGroup de círculos
+
+/* ── Paleta cuadrilla ── */
+const CUA_COLORS = {
+  'CUE INT 01':'#1a3a7a','CUE INT 02':'#f57c00','CUE INT 03':'#00897b',
+  'CUE INT 04':'#e53935','ZHU INT 01':'#6a1b9a','ONA INT 01':'#0288d1',
+  'GLT INT 01':'#558b2f','STA INT 01':'#ad1457','STA INT 02':'#ff6f00',
+  'SUC INT 01':'#00695c','SUC INT 02':'#37474f','GQZ INT 01':'#6d4c41'
+};
+
+/* ── Paleta motivo de corte ── */
+const MOTIVO_COLOR = {
+  'TRABAJOS TERCEROS':'#e53935',      'DERRUMBE':'#f57c00',
+  'ACCIDENTE DE TRÁNSITO':'#fdd835',  'PASO CARGA ALTA':'#8e24aa',
+  'CORTO CIRCUITO / INCENDIO':'#d81b60','CAÍDA DE ÁRBOL':'#43a047',
+  'CAÍDA DE POSTE':'#00acc1',         'ATENTADO':'#1a2340',
+  'TALA DE ÁRBOLES':'#6d4c41',        'DESCONEXIÓN ENLACES':'#546e7a',
+};
+
+/* ── Helpers ── */
+function colVal(row,...names){
+  const keys=Object.keys(row);
+  for(const n of names){
+    const k=keys.find(k=>k.trim().toUpperCase()===n.toUpperCase());
+    if(k) return (row[k]||'').toString().trim();
+  }
+  return '';
+}
+
+function parseCoord(str){
+  if(!str) return null;
+  const parts=str.toString().trim().split(/[,\s]+/).filter(p=>p);
+  if(parts.length<2) return null;
+  const lat=parseFloat(parts[0]), lng=parseFloat(parts[1]);
+  return (isNaN(lat)||isNaN(lng)) ? null : [lat,lng];
+}
+
+function parseNum(s){
+  if(s===null||s===undefined||s==='') return NaN;
+  return parseFloat(s.toString().replace(',','.'));
+}
+
+function normMotivo(m){
+  const s=m.trim().toUpperCase();
+  if(s.includes('TERCERO'))                       return 'TRABAJOS TERCEROS';
+  if(s.includes('DERRUMBE'))                      return 'DERRUMBE';
+  if(s.includes('ACCIDENTE'))                     return 'ACCIDENTE DE TRÁNSITO';
+  if(s.includes('CARGA'))                         return 'PASO CARGA ALTA';
+  if(s.includes('CORTO')||s.includes('INCENDIO')) return 'CORTO CIRCUITO / INCENDIO';
+  if(s.includes('ARBOL')||s.includes('ÁRBOL'))    return 'CAÍDA DE ÁRBOL';
+  if(s.includes('POSTE'))                         return 'CAÍDA DE POSTE';
+  if(s.includes('ATENTADO'))                      return 'ATENTADO';
+  if(s.includes('TALA'))                          return 'TALA DE ÁRBOLES';
+  if(s.includes('DESCONEX'))                      return 'DESCONEXIÓN ENLACES';
+  return s;
+}
+
+/* ── Cargar datos (una sola vez al inicio) ── */
+async function loadRutas(){
+  try{
+    const limit=500; let offset=0; let all=[];
+    while(true){
+      const batch=await fetchSheet_simple(`https://sheetdb.io/api/v1/9vr1wejd6lknd?sheet=RUTAS&limit=${limit}&offset=${offset}`);
+      if(!Array.isArray(batch)||batch.length===0) break;
+      all=all.concat(batch);
+      if(batch.length<limit) break;
+      offset+=limit;
+    }
+    RUTAS_DATA=all;
+    initMap();
+    renderMapa(F);
+    renderTablaRutas(F);
+  }catch(e){ console.error('Error rutas:',e); }
+}
+
+async function loadCortes(){
+  try{
+    const limit=500; let offset=0; let all=[];
+    while(true){
+      const batch=await fetchSheet_simple(`https://sheetdb.io/api/v1/9vr1wejd6lknd?sheet=Cortes&limit=${limit}&offset=${offset}`);
+      if(!Array.isArray(batch)||batch.length===0) break;
+      all=all.concat(batch);
+      if(batch.length<limit) break;
+      offset+=limit;
+    }
+    CORTES_DATA=all;
+    renderMapa(F);       // repintar con cortes ya disponibles
+  }catch(e){ console.error('Error cortes:',e); }
+}
+
+/* ── Inicializar mapa base (tile + zoom) — solo una vez ── */
+function initMap(){
+  const el=document.getElementById('mapa-rutas');
+  if(!el||leafletMap) return;
+  leafletMap=L.map('mapa-rutas',{zoomControl:true,scrollWheelZoom:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom:18
+  }).addTo(leafletMap);
+  layerRutas  = L.layerGroup().addTo(leafletMap);
+  layerCortes = L.layerGroup().addTo(leafletMap);
+}
+
+/* ══ renderMapa(F) — reconstruye capas según filtros activos ══════════ */
+function renderMapa(filtros){
+  if(!leafletMap) return;
+
+  // Limpiar capas anteriores
+  layerRutas.clearLayers();
+  layerCortes.clearLayers();
+
+  const cuaF = filtros.cua!=='all' ? filtros.cua.replace('CUE PROV ','') : null;
+  const mesF = filtros.mes!=='all' ? parseInt(filtros.mes) : null;
+  const empF = filtros.emp!=='all' ? filtros.emp.toUpperCase() : null;
+
+  const bounds=[];
+  const cuasEnMapa=new Set();
+  const motivosEnMapa=new Set();
+
+  /* ── Rutas filtradas ── */
+  RUTAS_DATA.forEach(row=>{
+    const cuaKey=colVal(row,'CUADRILLA').replace('CUE PROV ','');
+    const estado=colVal(row,'ESTADO').toUpperCase();
+    const ruta  =colVal(row,'RUTA');
+    const dist  =colVal(row,'DISTANCIA');
+    const c1    =parseCoord(colVal(row,'COORDENADAS 1','COORDENADAS1'));
+    const c2    =parseCoord(colVal(row,'COORDENADAS 2','COORDENADAS2'));
+    if(!c1||!c2) return;
+
+    // Filtrar por cuadrilla
+    if(cuaF && cuaKey!==cuaF) return;
+
+    const color=CUA_COLORS[cuaKey]||'#888';
+    const dashArray=estado==='ACTIVA'?null:estado==='LIBERADA'?'8,4':'4,4';
+    const opacity  =estado==='ACTIVA'?1.0 :estado==='LIBERADA'?0.55:0.4;
+    const weight   =estado==='ACTIVA'?4   :2.5;
+
+    const line=L.polyline([c1,c2],{color,weight,opacity,dashArray,lineJoin:'round',lineCap:'round'});
+    line.bindPopup(`
+      <div style="font-family:Segoe UI,system-ui,sans-serif;min-width:200px;">
+        <div style="font-weight:700;font-size:13px;color:#1a2340;margin-bottom:6px;">${ruta}</div>
+        <table style="font-size:11px;color:#444;border-collapse:collapse;width:100%">
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Cuadrilla</td><td><b>${cuaKey}</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Estado</td><td><b style="color:${estado==='ACTIVA'?'#00897b':'#888'}">${estado}</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Distancia</td><td><b>${dist} km</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Nodo inicio</td><td>${colVal(row,'NODO INICIO')}</td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Nodo fin</td><td>${colVal(row,'NODO FIN')}</td></tr>
+        </table>
+      </div>`,{maxWidth:260});
+    layerRutas.addLayer(line);
+
+    // Nodos como cuadrados con tooltip del nombre
+    const nodoInicio = colVal(row,'NODO INICIO');
+    const nodoFin    = colVal(row,'NODO FIN');
+    [[c1, nodoInicio],[c2, nodoFin]].forEach(([coord, nombre])=>{
+      const squareIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:10px;height:10px;
+          background:${color};
+          border:2px solid #fff;
+          box-shadow:0 0 0 1.5px ${color};
+          border-radius:2px;
+          cursor:pointer;
+        "></div>`,
+        iconSize:[10,10],
+        iconAnchor:[5,5]
+      });
+      const marker = L.marker(coord, {icon:squareIcon});
+      if(nombre){
+        marker.bindTooltip(`<span style="font-family:Segoe UI,system-ui,sans-serif;font-size:11px;font-weight:700;color:#1a2340;">${nombre}</span>`,{
+          permanent:false,
+          direction:'top',
+          offset:[0,-6],
+          className:'nodo-tooltip'
+        });
+      }
+      layerRutas.addLayer(marker);
+    });
+    bounds.push(c1); bounds.push(c2);
+    cuasEnMapa.add(cuaKey);
+  });
+
+  /* ── Cortes filtrados ── */
+  CORTES_DATA.forEach(row=>{
+    const lat =parseNum(colVal(row,'LATITUD'));
+    const lng =parseNum(colVal(row,'LONGITUD'));
+    if(isNaN(lat)||isNaN(lng)) return;
+
+    const cuaCorte=colVal(row,'CUADRILLA').replace('CUE PROV ','');
+    const mesCorte=parseInt(colVal(row,'MES'))||0;
+    const motRaw  =colVal(row,'MOTIVO','MOTIVO ');
+    const mot     =normMotivo(motRaw);
+    const color   =MOTIVO_COLOR[mot]||'#888';
+    const ruta    =colVal(row,'RUTA');
+    const anio    =colVal(row,'AÑO','ANO');
+    const dia     =colVal(row,'DIA');
+    const tmin    =colVal(row,'TIEMPO (MIN)');
+
+    // Filtrar por cuadrilla y mes
+    if(cuaF && cuaCorte!==cuaF) return;
+    if(mesF && mesCorte!==mesF) return;
+
+    motivosEnMapa.add(mot);
+
+    const marker=L.circleMarker([lat,lng],{
+      radius:9,fillColor:color,color:'#ffffff',
+      weight:2,fillOpacity:0.92,zIndexOffset:1000
+    });
+    marker.bindPopup(`
+      <div style="font-family:Segoe UI,system-ui,sans-serif;min-width:210px;">
+        <div style="font-weight:700;font-size:12px;color:#1a2340;margin-bottom:6px;">⚡ Corte de Ruta</div>
+        <table style="font-size:11px;color:#444;border-collapse:collapse;width:100%">
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Ruta</td><td><b>${ruta}</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Motivo</td><td><b style="color:${color}">${mot}</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Fecha</td><td>${dia}/${mesCorte}/${anio}</td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Duración</td><td><b>${tmin} min (${(tmin/60).toFixed(1)} h)</b></td></tr>
+          <tr><td style="color:#888;padding:2px 8px 2px 0">Cuadrilla</td><td>${cuaCorte}</td></tr>
+        </table>
+      </div>`,{maxWidth:270});
+    layerCortes.addLayer(marker);
+  });
+
+  /* ── Ajustar vista solo si hay capas ── */
+  if(bounds.length) leafletMap.fitBounds(L.latLngBounds(bounds).pad(0.08));
+
+  /* ── Leyenda dinámica ── */
+  const leg=document.getElementById('map-legend');
+  if(leg){
+    leg.innerHTML='';
+    // Rutas
+    if(cuasEnMapa.size){
+      leg.innerHTML+=`<div style="width:100%;font-size:10px;font-weight:700;text-transform:uppercase;
+        letter-spacing:.5px;color:#6b7a99;font-family:Segoe UI,system-ui,sans-serif;margin-bottom:4px;">
+        🗺️ Rutas por cuadrilla</div>`;
+      [...cuasEnMapa].sort().forEach(cua=>{
+        const c=CUA_COLORS[cua]||'#888';
+        leg.innerHTML+=`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#1a2340;font-family:Segoe UI,system-ui,sans-serif;">
+          <div style="width:24px;height:4px;background:${c};border-radius:2px;flex-shrink:0;"></div><span>${cua}</span></div>`;
+      });
+    }
+    // Cortes
+    if(motivosEnMapa.size){
+      leg.innerHTML+=`<div style="width:100%;margin-top:8px;font-size:10px;font-weight:700;text-transform:uppercase;
+        letter-spacing:.5px;color:#6b7a99;font-family:Segoe UI,system-ui,sans-serif;margin-bottom:4px;">
+        ⚡ Cortes por motivo</div>`;
+      [...motivosEnMapa].sort().forEach(mot=>{
+        const c=MOTIVO_COLOR[mot]||'#888';
+        leg.innerHTML+=`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#1a2340;font-family:Segoe UI,system-ui,sans-serif;">
+          <div style="width:12px;height:12px;background:${c};border-radius:50%;border:2px solid #fff;
+            box-shadow:0 0 0 1px ${c};flex-shrink:0;"></div><span>${mot}</span></div>`;
+      });
+    }
+  }
+}
+
+
+/* ══ TABLA DE RUTAS ══════════════════════════════════════════════════ */
+let tblSortCol = 'RUTA';
+let tblSortAsc = true;
+
+function renderTablaRutas(filtros){
+  if(!RUTAS_DATA.length) return;
+
+  const cuaF = filtros.cua!=='all' ? filtros.cua.replace('CUE PROV ','') : null;
+  const mesF = filtros.mes!=='all' ? parseInt(filtros.mes) : null;
+
+  // Filtrar rutas por cuadrilla (única dimensión aplicable a rutas)
+  let filas = RUTAS_DATA.map(row=>{
+    const cua   = colVal(row,'CUADRILLA').replace('CUE PROV ','');
+    const ruta  = colVal(row,'RUTA');
+    const dist  = parseFloat(colVal(row,'DISTANCIA'))||0;
+    const estado= colVal(row,'ESTADO').toUpperCase().trim();
+    const disp  = parseInt(colVal(row,'DISPONIBLES'))||0;
+    const pctRaw= colVal(row,'PORCENTAJE').replace('%','').replace(',','.').trim();
+    const pct   = parseFloat(pctRaw)||0;
+    return {ruta,dist,cua,estado,disp,pct};
+  }).filter(r=>{
+    if(cuaF && r.cua!==cuaF) return false;
+    return true;
+  });
+
+  // Ordenar
+  filas.sort((a,b)=>{
+    let va=a[tblSortCol.toLowerCase()]==='pct'?a.pct:a[tblSortCol.toLowerCase()];
+    let vb=b[tblSortCol.toLowerCase()]==='pct'?b.pct:b[tblSortCol.toLowerCase()];
+    if(tblSortCol==='DISTANCIA'||tblSortCol==='DISPONIBLES'||tblSortCol==='PORCENTAJE'){
+      va=typeof va==='number'?va:parseFloat(va)||0;
+      vb=typeof vb==='number'?vb:parseFloat(vb)||0;
+      return tblSortAsc?va-vb:vb-va;
+    }
+    return tblSortAsc
+      ? String(va).localeCompare(String(vb),'es')
+      : String(vb).localeCompare(String(va),'es');
+  });
+
+  // Actualizar cabeceras de ordenamiento
+  document.querySelectorAll('.rtbl th[data-col]').forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(th.dataset.col===tblSortCol)
+      th.classList.add(tblSortAsc?'sort-asc':'sort-desc');
+  });
+
+  // Colores de barra según porcentaje
+  function pctColor(p){
+    if(p>=70) return '#e53935';
+    if(p>=40) return '#f57c00';
+    return '#00897b';
+  }
+
+  // Clase de badge por estado
+  function estClass(e){
+    if(e==='ACTIVA')    return 'est-activa';
+    if(e==='LIBERADA')  return 'est-liberada';
+    if(e.includes('CONSTRUC')) return 'est-construc';
+    return 'est-espera';
+  }
+
+  // Renderizar filas
+  const tbody = document.getElementById('tbl-rutas-body');
+  if(!filas.length){
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Sin rutas para los filtros seleccionados</td></tr>';
+  } else {
+    tbody.innerHTML = filas.map(r=>`
+      <tr>
+        <td style="font-weight:600;color:var(--accent)">${r.ruta}</td>
+        <td style="text-align:right;">${r.dist}</td>
+        <td>${r.cua}</td>
+        <td><span class="est-badge ${estClass(r.estado)}">${r.estado}</span></td>
+        <td style="text-align:right;font-weight:600;">${r.disp}</td>
+        <td>
+          <div class="pct-wrap">
+            <div class="pct-bg">
+              <div class="pct-fill" style="width:${Math.min(r.pct,100)}%;background:${pctColor(r.pct)};"></div>
+            </div>
+            <span style="font-size:11px;color:${pctColor(r.pct)};font-weight:700;min-width:38px;">${r.pct.toFixed(1)}%</span>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  // Resumen
+  const totalDist = filas.reduce((s,r)=>s+r.dist,0);
+  const totalDisp = filas.reduce((s,r)=>s+r.disp,0);
+  const activas   = filas.filter(r=>r.estado==='ACTIVA').length;
+  document.getElementById('rutas-count').textContent =
+    `${filas.length} ruta${filas.length!==1?'s':''}`;
+  document.getElementById('rutas-footer').innerHTML = `
+    <span>Rutas activas: <b>${activas}</b></span>
+    <span>Km totales: <b>${totalDist.toLocaleString()}</b></span>
+    <span>Canales disponibles: <b>${totalDisp.toLocaleString()}</b></span>
+  `;
+}
+
+// Click en cabeceras para ordenar
+document.querySelectorAll('.rtbl th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    if(tblSortCol===col) tblSortAsc=!tblSortAsc;
+    else{ tblSortCol=col; tblSortAsc=true; }
+    renderTablaRutas(F);
+  });
+});
+
+
+/* ══ TABLA DETALLE DE REGISTROS ══════════════════════════════════════ */
+let DETAIL_ROWS = [];   // datos completos normalizados para la tabla
+let dSortCol    = 'fecha';
+let dSortAsc    = true;
+let dSearchTerm = '';
+
+/* Convertir ROWS (array compacto) a objetos completos cuando se carguen los datos crudos */
+let RAW_TAREAS = [];  // filas crudas de la API para la tabla de detalle
+
+async function loadDetalle(){
+  try{
+    const limit=500; let offset=0; let all=[];
+    while(true){
+      const url=`https://sheetdb.io/api/v1/9vr1wejd6lknd?sheet=Tareas&limit=${limit}&offset=${offset}`;
+      const batch=await fetchSheet_simple(url);
+      if(!Array.isArray(batch)||batch.length===0) break;
+      all=all.concat(batch);
+      if(batch.length<limit) break;
+      offset+=limit;
+    }
+    RAW_TAREAS=all;
+    renderDetalle(F);
+  }catch(e){ console.error('Error detalle:',e); }
+}
+
+function parseDuracion(raw){
+  // formatos posibles: "0 days 06:46:56", "06:46:56", "0:04:12"
+  if(!raw||raw==='') return 0;
+  const s=raw.toString().trim();
+  // "X days HH:MM:SS"
+  const dMatch=s.match(/(\d+)\s+days?\s+(\d+):(\d+):(\d+)/i);
+  if(dMatch){
+    const d=parseInt(dMatch[1]),h=parseInt(dMatch[2]),m=parseInt(dMatch[3]),sec=parseInt(dMatch[4]);
+    return +(d*24+h+m/60+sec/3600).toFixed(2);
+  }
+  // "HH:MM:SS"
+  const hMatch=s.match(/(\d+):(\d+):(\d+)/);
+  if(hMatch){
+    return +(parseInt(hMatch[1])+parseInt(hMatch[2])/60+parseInt(hMatch[3])/3600).toFixed(2);
+  }
+  return 0;
+}
+
+function renderDetalle(filtros){
+  if(!RAW_TAREAS.length) return;
+
+  const cuaF  = filtros.cua  !=='all' ? filtros.cua.toUpperCase()  : null;
+  const mesF  = filtros.mes  !=='all' ? parseInt(filtros.mes)       : null;
+  const tipoF = filtros.tipo !=='all' ? filtros.tipo.toUpperCase()  : null;
+  const areaF = filtros.area !=='all' ? filtros.area.toUpperCase()  : null;
+  const empF  = filtros.emp  !=='all' ? filtros.emp.toUpperCase()   : null;
+  const nomF  = filtros.nombre!=='all'? filtros.nombre              : null;
+
+  // Filtrar filas crudas
+  let filas = RAW_TAREAS.map(row=>{
+    const cua    = (colVal(row,'CUADRILLA')||'').replace('CUE PROV ','').toUpperCase();
+    const fecha  = colVal(row,'FECHA')||'';
+    const mes    = parseInt(colVal(row,'MES'))||0;
+    const numT   = colVal(row,'NUMERO DE TAREA')||'';
+    const numC   = colVal(row,'NUMERO DE CASO')||'';
+    const num    = numT&&numT!=='-'&&numT!=='' ? numT : numC;
+    const nombre = colVal(row,'NOMBRE DE TAREA')||'';
+    const tipo   = (colVal(row,'TIPO')||'').toUpperCase();
+    const area   = (colVal(row,'AREA','ÁREA')||'').toUpperCase();
+    const empresa= (colVal(row,'EMPRESA')||'').toUpperCase();
+    const durRaw = colVal(row,'DURACIÓN','DURACION')||'0';
+    const dur    = parseDuracion(durRaw);
+    return {cua,fecha,mes,num,nombre,tipo,area,empresa,dur};
+  }).filter(r=>{
+    if(!r.cua) return false;
+    if(cuaF  && r.cua  !==cuaF.replace('CUE PROV ','')) return false;
+    if(mesF  && r.mes  !==mesF)  return false;
+    if(tipoF && r.tipo !==tipoF) return false;
+    if(areaF && r.area !==areaF) return false;
+    if(empF  && r.empresa!==empF)return false;
+    if(nomF  && r.nombre!==nomF) return false;
+    return true;
+  });
+
+  // Búsqueda libre
+  if(dSearchTerm){
+    const q=dSearchTerm.toLowerCase();
+    filas=filas.filter(r=>
+      r.cua.toLowerCase().includes(q)||
+      r.nombre.toLowerCase().includes(q)||
+      r.num.toLowerCase().includes(q)||
+      r.empresa.toLowerCase().includes(q)||
+      r.area.toLowerCase().includes(q)
+    );
+  }
+
+  // Ordenar
+  filas.sort((a,b)=>{
+    let va=a[dSortCol], vb=b[dSortCol];
+    if(dSortCol==='dur'){
+      return dSortAsc?va-vb:vb-va;
+    }
+    return dSortAsc
+      ? String(va).localeCompare(String(vb),'es')
+      : String(vb).localeCompare(String(va),'es');
+  });
+
+  // Actualizar cabeceras
+  document.querySelectorAll('.dtbl th[data-dcol]').forEach(th=>{
+    th.classList.remove('dsort-asc','dsort-desc');
+    if(th.dataset.dcol===dSortCol)
+      th.classList.add(dSortAsc?'dsort-asc':'dsort-desc');
+  });
+
+  // Info
+  document.getElementById('dtbl-info').textContent=
+    `${filas.length.toLocaleString()} registros`;
+
+  // Renderizar (máx 500 filas visibles para rendimiento)
+  const visible=filas.slice(0,500);
+  const tbody=document.getElementById('dtbl-body');
+  if(!visible.length){
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;">Sin registros para los filtros seleccionados</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML=visible.map(r=>{
+    const tipoCls = r.tipo==='TAREA'?'d-tipo-tarea':'d-tipo-caso';
+    return `<tr>
+      <td class="td-cua">${r.cua}</td>
+      <td>${r.fecha?r.fecha.toString().slice(0,10):''}</td>
+      <td class="td-num">${r.num}</td>
+      <td>${r.nombre}</td>
+      <td><span class="d-tipo ${tipoCls}">${r.tipo}</span></td>
+      <td><span class="d-area">${r.area}</span></td>
+      <td>${r.empresa}</td>
+      <td class="td-dur">${r.dur}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Ordenar al clic en cabecera
+document.querySelectorAll('.dtbl th[data-dcol]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.dcol;
+    if(dSortCol===col) dSortAsc=!dSortAsc;
+    else{ dSortCol=col; dSortAsc=true; }
+    renderDetalle(F);
+  });
+});
+
+// Búsqueda en tiempo real
+document.getElementById('dtbl-search').addEventListener('input',e=>{
+  dSearchTerm=e.target.value.trim();
+  renderDetalle(F);
+});
+
+/* ══ INIT ═══════════════════════════════════════════════════ */
+loadData();
+loadRutas();
+loadCortes();
+loadDetalle();
+
+</script>
 </body>
 </html>
